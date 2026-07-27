@@ -454,6 +454,7 @@ def faculty_assistant_chat_stream(payload: dict = Body(...), db: Session = Depen
     Streamed chat for the Faculty Assistant via Server-Sent Events (SSE)
     """
     message = payload.get("message", "")
+    history = payload.get("history", [])
     # Default to first faculty if not authenticated in MVP session
     faculty_id = payload.get("faculty_id", 1) 
 
@@ -463,7 +464,7 @@ def faculty_assistant_chat_stream(payload: dict = Body(...), db: Session = Depen
         # to simulate typing effect or stream model outputs sequentially)
         try:
             # Get the fully parsed response
-            agent_result = handle_faculty_assistant_chat(message, faculty_id, db)
+            agent_result = handle_faculty_assistant_chat(message, faculty_id, db, history)
             text_response = agent_result["text"]
             tool_calls = agent_result["tool_calls"]
             rich_data = agent_result["rich_data"]

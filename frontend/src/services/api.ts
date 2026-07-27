@@ -81,6 +81,7 @@ export const api = {
 
   streamChat(
     message: string,
+    history: any[],
     onChunk: (text: string) => void,
     onTrace: (trace: any) => void,
     onDone: (toolCalls: any[], richData: any) => void,
@@ -95,6 +96,9 @@ export const api = {
       let richData: any = null;
       let toolCalls: any[] = [];
       const msgLower = message.toLowerCase();
+      
+      const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant');
+      const lastAssistantContent = lastAssistantMsg ? lastAssistantMsg.content : '';
 
       if (msgLower.includes('schedule') || msgLower.includes('today') || msgLower.includes('timetable') || msgLower.includes('classes')) {
         let day = 'Monday';
@@ -141,15 +145,124 @@ export const api = {
           day: day,
           schedule: filtered
         };
-      } else if (msgLower.includes('draft') && !msgLower.includes('leave')) {
+      } else if (msgLower.includes('/draft-mail-type leave')) {
+        mockReply = "Great! Let's draft a **Leave Permission** email.\n\nHow many days of leave do you need, and what is the reason? Please select an option below or write your own details in the chat.";
+        richData = {
+          type: 'interactive_choices',
+          choices: [
+            { label: '1 day, personal work', value: '/draft-mail-leave-details 1 day, personal urgent work at home' },
+            { label: '2 days, personal work', value: '/draft-mail-leave-details 2 days, personal urgent work at home' },
+            { label: '3 days, medical reasons', value: '/draft-mail-leave-details 3 days, medical reason (fever)' },
+            { label: 'Write my own details...', value: '/draft-mail-leave-custom', action: 'custom' }
+          ]
+        };
+      } else if (msgLower.includes('/draft-mail-leave-custom')) {
+        mockReply = "Please type how many days and the reason for your leave: (e.g. '2 days for personal work')";
+      } else if (msgLower.includes('/draft-mail-leave-details') || (lastAssistantContent && lastAssistantContent.includes('Please type how many days and the reason for your leave'))) {
+        const details = msgLower.includes('/draft-mail-leave-details')
+          ? message.replace('/draft-mail-leave-details', '').trim()
+          : message.trim();
         toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
-        mockReply = "Here is a drafted reminder email for you:\n\n**Subject:** Urgent: Low Attendance Warning\n\n**Body:**\nDear Student,\n\nOur records show your attendance is currently below 75%. Please ensure you attend the remaining lectures to maintain exam eligibility.\n\nSincerely,\nFaculty Office";
+        mockReply = `Here is a drafted leave request email for you:\n\n**Subject:** Application for Casual Leave - Dr. Rajesh Kumar\n\n**Body:**\nDear Head of Department,\n\nI am writing to formally request leave for ${details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`;
         richData = {
           type: 'email_draft',
-          to_name: 'Student',
-          purpose: 'attendance reminder',
-          subject: 'Urgent: Low Attendance Warning',
-          body: "Dear Student,\n\nOur records show your attendance is currently below 75%. Please ensure you attend the remaining lectures to maintain exam eligibility.\n\nSincerely,\nFaculty Office"
+          to_name: 'HOD',
+          purpose: 'Leave Request',
+          subject: 'Application for Casual Leave - Dr. Rajesh Kumar',
+          body: `Dear Head of Department,\n\nI am writing to formally request leave for ${details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`
+        };
+      } else if (msgLower.includes('/draft-mail-type instruction')) {
+        mockReply = "Great! Let's draft an **Instruction to Students** email.\n\nWhat is the instruction/announcement? Please select a recommendation below or write your own details.";
+        richData = {
+          type: 'interactive_choices',
+          choices: [
+            { label: 'Class cancelled tomorrow', value: '/draft-mail-instruction-details Class is cancelled tomorrow due to faculty development program' },
+            { label: 'Assignment due next week', value: '/draft-mail-instruction-details Homework assignment 4 is due next Tuesday at 5 PM' },
+            { label: 'Exam schedule reminder', value: '/draft-mail-instruction-details The mid-term exam will be held on Monday at LH-201 at 10 AM' },
+            { label: 'Write my own details...', value: '/draft-mail-instruction-custom', action: 'custom' }
+          ]
+        };
+      } else if (msgLower.includes('/draft-mail-instruction-custom')) {
+        mockReply = "Please type the details of the instruction/announcement for students:";
+      } else if (msgLower.includes('/draft-mail-instruction-details') || (lastAssistantContent && lastAssistantContent.includes('details of the instruction/announcement for students'))) {
+        const details = msgLower.includes('/draft-mail-instruction-details')
+          ? message.replace('/draft-mail-instruction-details', '').trim()
+          : message.trim();
+        toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
+        mockReply = `Here is a drafted reminder email for your students:\n\n**Subject:** Important Class Update for Students\n\n**Body:**\nDear Students,\n\nPlease note the following update regarding our course:\n\n${details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`;
+        richData = {
+          type: 'email_draft',
+          to_name: 'Students',
+          purpose: 'Class Update',
+          subject: 'Important Class Update for Students',
+          body: `Dear Students,\n\nPlease note the following update regarding our course:\n\n${details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`
+        };
+      } else if (msgLower.includes('/draft-mail-type inquiry')) {
+        mockReply = "Great! Let's draft a **General Inquiry** email.\n\nWho is the recipient, and what is the inquiry? Please select an option below or write your own details.";
+        richData = {
+          type: 'interactive_choices',
+          choices: [
+            { label: 'To HOD: Room allocation', value: '/draft-mail-inquiry-details To HOD, inquiry about seminar hall availability this Friday' },
+            { label: 'To Admin: Salary status', value: '/draft-mail-inquiry-details To Admin, inquiry about salary disbursement status' },
+            { label: 'Write my own details...', value: '/draft-mail-inquiry-custom', action: 'custom' }
+          ]
+        };
+      } else if (msgLower.includes('/draft-mail-inquiry-custom')) {
+        mockReply = "Please type who the recipient is and what you would like to inquire about: (e.g. 'To HOD, asking for syllabus copy')";
+      } else if (msgLower.includes('/draft-mail-inquiry-details') || (lastAssistantContent && lastAssistantContent.includes('recipient is and what you would like to inquire about'))) {
+        const details = msgLower.includes('/draft-mail-inquiry-details')
+          ? message.replace('/draft-mail-inquiry-details', '').trim()
+          : message.trim();
+        const to_name = details.startsWith('To') ? details.split(',')[0].replace('To ', '').trim() : 'Recipient';
+        const inquiryText = details.split(',')[1]?.trim() || details;
+        toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
+        mockReply = `Here is a drafted inquiry email for you:\n\n**Subject:** Inquiry: ${inquiryText}\n\n**Body:**\nDear ${to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n${inquiryText}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`;
+        richData = {
+          type: 'email_draft',
+          to_name: to_name,
+          purpose: 'General Inquiry',
+          subject: `Inquiry: ${inquiryText}`,
+          body: `Dear ${to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n${inquiryText}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`
+        };
+      } else if (msgLower.includes('/draft-mail-type custom')) {
+        mockReply = "Please type the subject of the email you would like to draft:";
+      } else if (lastAssistantContent && lastAssistantContent.includes('type the subject of the email')) {
+        mockReply = `Got it. Subject will be: "${message}".\n\nWho is the recipient, and what is the main content/purpose of this email? (e.g. 'To Dean, discussing the new syllabus changes')`;
+      } else if (lastAssistantContent && lastAssistantContent.includes('Who is the recipient, and what is the main content/purpose')) {
+        const findCustomSubject = () => {
+          const reversedHistory = [...history].reverse();
+          for (let i = 0; i < reversedHistory.length; i++) {
+            if (reversedHistory[i].role === 'assistant' && reversedHistory[i].content.includes('type the subject of the email')) {
+              const userMsg = reversedHistory[i - 1];
+              if (userMsg && userMsg.role === 'user') {
+                return userMsg.content;
+              }
+            }
+          }
+          return 'General Draft';
+        };
+        const subject = findCustomSubject();
+        const to_name = message.startsWith('To') ? message.split(',')[0].replace('To ', '').trim() : 'Recipient';
+        const bodyText = message.split(',')[1]?.trim() || message;
+        toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
+        mockReply = `Here is your custom drafted email:\n\n**Subject:** ${subject}\n\n**Body:**\nDear ${to_name},\n\nI hope this email finds you well.\n\nRegarding: ${subject}\n\n${bodyText}.\n\nThank you.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`;
+        richData = {
+          type: 'email_draft',
+          to_name: to_name,
+          purpose: 'Custom Draft',
+          subject: subject,
+          body: `Dear ${to_name},\n\nI hope this email finds you well.\n\nRegarding: ${subject}\n\n${bodyText}.\n\nThank you.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.`
+        };
+      } else if (msgLower.includes('/draft-mail') || msgLower === 'draft a mail' || msgLower === 'draft mail') {
+        mockReply = "I can help you draft a professional email. Please select one of the common subjects below or write your own subject:\n\n1. 📝 **Leave Permission**\n2. 🎓 **Instruction to Students**\n3. 📋 **General Inquiry**\n4. ✍️ **Write my own subject...**";
+        richData = {
+          type: 'interactive_choices',
+          choices: [
+            { label: 'Leave Permission', value: '/draft-mail-type leave', icon: '📝' },
+            { label: 'Instruction to Students', value: '/draft-mail-type instruction', icon: '🎓' },
+            { label: 'General Inquiry', value: '/draft-mail-type inquiry', icon: '📋' },
+            { label: 'Write my own subject...', value: '/draft-mail-type custom', icon: '✍️' }
+          ]
         };
       } else if (msgLower.includes('syllabus') || msgLower.includes('daa') || msgLower.includes('topics') || msgLower.includes('compiler') || msgLower.includes('learning')) {
         let subject = 'Design & Analysis of Algorithms';
@@ -266,7 +379,7 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message, faculty_id: 1 })
+      body: JSON.stringify({ message, history, faculty_id: 1 })
     })
     .then(response => {
       if (!response.ok) {
