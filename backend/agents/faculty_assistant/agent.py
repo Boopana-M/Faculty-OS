@@ -59,13 +59,13 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session, hi
         elif "/draft-mail-leave-details" in msg_lower or "Please type how many days and the reason for your leave" in last_assistant_content:
             details = message.replace("/draft-mail-leave-details", "").strip()
             tool_calls.append({"name": "draft_email", "status": "success", "result": "Configured email draft helper."})
-            text_response = f"Here is a drafted leave request email for you:\n\n**Subject:** Application for Casual Leave - Dr. Rajesh Kumar\n\n**Body:**\nDear Head of Department,\n\nI am writing to formally request leave for {details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+            text_response = f"Here is a drafted leave request email for you:\n\n**Subject:** Application for Casual Leave - Preethi R\n\n**Body:**\nDear Head of Department,\n\nI am writing to formally request leave for {details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             rich_data = {
                 "type": "email_draft",
                 "to_name": "HOD",
                 "purpose": "Leave Request",
-                "subject": "Application for Casual Leave - Dr. Rajesh Kumar",
-                "body": f"Dear Head of Department,\n\nI am writing to formally request leave for {details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+                "subject": "Application for Casual Leave - Preethi R",
+                "body": f"Dear Head of Department,\n\nI am writing to formally request leave for {details}.\n\nI have arranged for my classes to be handled during this period and will be reachable via phone and email if anything urgent arises.\n\nThank you for your consideration.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             }
         elif "/draft-mail-type instruction" in msg_lower:
             text_response = "Great! Let's draft an **Instruction to Students** email.\n\nWhat is the instruction/announcement? Please select a recommendation below or write your own details."
@@ -83,13 +83,13 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session, hi
         elif "/draft-mail-instruction-details" in msg_lower or "details of the instruction/announcement for students" in last_assistant_content:
             details = message.replace("/draft-mail-instruction-details", "").strip()
             tool_calls.append({"name": "draft_email", "status": "success", "result": "Configured email draft helper."})
-            text_response = f"Here is a drafted reminder email for your students:\n\n**Subject:** Important Class Update for Students\n\n**Body:**\nDear Students,\n\nPlease note the following update regarding our course:\n\n{details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+            text_response = f"Here is a drafted reminder email for your students:\n\n**Subject:** Important Class Update for Students\n\n**Body:**\nDear Students,\n\nPlease note the following update regarding our course:\n\n{details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             rich_data = {
                 "type": "email_draft",
                 "to_name": "Students",
                 "purpose": "Class Update",
                 "subject": "Important Class Update for Students",
-                "body": f"Dear Students,\n\nPlease note the following update regarding our course:\n\n{details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+                "body": f"Dear Students,\n\nPlease note the following update regarding our course:\n\n{details}.\n\nPlease plan accordingly and reach out if you have any questions.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             }
         elif "/draft-mail-type inquiry" in msg_lower:
             text_response = "Great! Let's draft a **General Inquiry** email.\n\nWho is the recipient, and what is the inquiry? Please select an option below or write your own details."
@@ -108,13 +108,13 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session, hi
             to_name = details.split(',')[0].replace('To ', '').strip() if details.startswith('To') else 'Recipient'
             inquiry_text = details.split(',')[1].strip() if ',' in details else details
             tool_calls.append({"name": "draft_email", "status": "success", "result": "Configured email draft helper."})
-            text_response = f"Here is a drafted inquiry email for you:\n\n**Subject:** Inquiry: {inquiry_text}\n\n**Body:**\nDear {to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n{inquiry_text}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+            text_response = f"Here is a drafted inquiry email for you:\n\n**Subject:** Inquiry: {inquiry_text}\n\n**Body:**\nDear {to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n{inquiry_text}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nPreethi R\nProfessor & Head, CSE Dept."
             rich_data = {
                 "type": "email_draft",
                 "to_name": to_name,
                 "purpose": "General Inquiry",
                 "subject": f"Inquiry: {inquiry_text}",
-                "body": f"Dear {to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n{inquiry_text}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+                "body": f"Dear {to_name},\n\nI hope this email finds you well.\n\nI am writing to inquire about the following:\n{inquiry_text}.\n\nKindly let me know the status at your earliest convenience.\n\nThank you,\nPreethi R\nProfessor & Head, CSE Dept."
             }
         elif "/draft-mail-type custom" in msg_lower:
             text_response = "Please type the subject of the email you would like to draft:"
@@ -135,13 +135,13 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session, hi
             to_name = message.split(',')[0].replace('To ', '').strip() if message.startswith('To') else 'Recipient'
             body_text = message.split(',')[1].strip() if ',' in message else message
             tool_calls.append({"name": "draft_email", "status": "success", "result": "Configured email draft helper."})
-            text_response = f"Here is your custom drafted email:\n\n**Subject:** {subject}\n\n**Body:**\nDear {to_name},\n\nI hope this email finds you well.\n\nRegarding: {subject}\n\n{body_text}.\n\nThank you.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+            text_response = f"Here is your custom drafted email:\n\n**Subject:** {subject}\n\n**Body:**\nDear {to_name},\n\nI hope this email finds you well.\n\nRegarding: {subject}\n\n{body_text}.\n\nThank you.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             rich_data = {
                 "type": "email_draft",
                 "to_name": to_name,
                 "purpose": "Custom Draft",
                 "subject": subject,
-                "body": f"Dear {to_name},\n\nI hope this email finds you well.\n\nRegarding: {subject}\n\n{body_text}.\n\nThank you.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+                "body": f"Dear {to_name},\n\nI hope this email finds you well.\n\nRegarding: {subject}\n\n{body_text}.\n\nThank you.\n\nSincerely,\nPreethi R\nProfessor & Head, CSE Dept."
             }
         elif "/draft-mail" in msg_lower or msg_lower == "draft a mail" or msg_lower == "draft mail":
             text_response = "I can help you draft a professional email. Please select one of the common subjects below or write your own subject:\n\n1. 📝 **Leave Permission**\n2. 🎓 **Instruction to Students**\n3. 📋 **General Inquiry**\n4. ✍️ **Write my own subject...**"

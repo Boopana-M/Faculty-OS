@@ -22,7 +22,7 @@ def seed_database(db: Session):
     
     # 1. Create Faculty
     demo_faculty = Faculty(
-        name="Dr. Rajesh Kumar",
+        name="Preethi R",
         email=demo_email,
         department="Computer Science & Engineering",
         designation="Professor & Head",

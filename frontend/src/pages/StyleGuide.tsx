@@ -102,7 +102,7 @@ export const StyleGuide: React.FC = () => {
           <div className="flex flex-col gap-4">
             <div>
               <span className="text-xs text-ink-muted uppercase tracking-widest font-mono">Display (Fraunces Medium)</span>
-              <h3 className="font-display text-3xl font-medium text-ink mt-1">Dr. Rajesh Kumar</h3>
+              <h3 className="font-display text-3xl font-medium text-ink mt-1">Preethi R</h3>
             </div>
             
             <div>
