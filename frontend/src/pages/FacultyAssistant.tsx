@@ -51,6 +51,16 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
   const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'add' | 'bulk'>('list');
 
+  // Policy Upload States
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [policyTitle, setPolicyTitle] = useState('');
+  const [policyCategory, setPolicyCategory] = useState('Academic');
+  const [selectedPolicyFile, setSelectedPolicyFile] = useState<File | null>(null);
+  const [isUploadingPolicy, setIsUploadingPolicy] = useState(false);
+  const [uploadPolicyError, setUploadPolicyError] = useState<string | null>(null);
+  const [uploadPolicySuccess, setUploadPolicySuccess] = useState<string | null>(null);
+
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -199,6 +209,35 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
       setBulkText(text);
     };
     reader.readAsText(file);
+  };
+
+  const handlePolicyUploadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploadPolicyError(null);
+    setUploadPolicySuccess(null);
+    
+    if (!policyTitle || !policyCategory || !selectedPolicyFile) {
+      setUploadPolicyError("Please fill in all fields and select a text file.");
+      return;
+    }
+    
+    setIsUploadingPolicy(true);
+    try {
+      const res = await api.uploadPolicy(policyTitle, policyCategory, selectedPolicyFile);
+      setUploadPolicySuccess(res.message || "Policy successfully uploaded and indexed!");
+      setPolicyTitle('');
+      setPolicyCategory('Academic');
+      setSelectedPolicyFile(null);
+      
+      setTimeout(() => {
+        setIsPolicyModalOpen(false);
+        setUploadPolicySuccess(null);
+      }, 1500);
+    } catch (err: any) {
+      setUploadPolicyError(err.message || "Failed to upload policy document.");
+    } finally {
+      setIsUploadingPolicy(false);
+    }
   };
 
 
@@ -1060,10 +1099,18 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
 
         {/* Policy Search / RAG Sidebar Widget */}
         <Card className="border border-border/80 bg-surface shadow-soft">
-          <div className="border-b border-border pb-3 mb-4">
+          <div className="border-b border-border pb-3 mb-4 flex items-center justify-between">
             <h3 className="font-display font-medium text-lg text-ink flex items-center gap-2">
               <Search className="text-accent-500" size={18} /> Policy Document RAG
             </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPolicyModalOpen(true)}
+              className="py-1 px-2 text-xs flex items-center gap-1 border-accent-500/30 text-accent-400 hover:bg-accent-500/10 hover:border-accent-500"
+            >
+              <Plus size={11} /> Upload
+            </Button>
           </div>
 
           <form onSubmit={handleSearchPolicies} className="flex gap-2">
@@ -1107,6 +1154,113 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
             </div>
           )}
         </Card>
+
+      {/* Policy Upload Modal */}
+      {isPolicyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-surface border border-border rounded-radius-md shadow-2xl overflow-hidden font-ui">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-border bg-surface/80 flex items-center justify-between">
+              <h3 className="font-display font-medium text-lg text-ink flex items-center gap-2">
+                <Upload className="text-indigo-400" size={20} /> Upload Policy Document
+              </h3>
+              <button 
+                onClick={() => {
+                  setIsPolicyModalOpen(false);
+                  setPolicyTitle('');
+                  setPolicyCategory('Academic');
+                  setSelectedPolicyFile(null);
+                  setUploadPolicyError(null);
+                  setUploadPolicySuccess(null);
+                }}
+                className="text-ink-muted hover:text-ink transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <form onSubmit={handlePolicyUploadSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Policy Title</label>
+                <Input 
+                  value={policyTitle} 
+                  onChange={(e) => setPolicyTitle(e.target.value)} 
+                  placeholder="e.g. PhD Coursework Guidelines"
+                  className="py-2 text-xs" 
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Category</label>
+                <select 
+                  value={policyCategory} 
+                  onChange={(e) => setPolicyCategory(e.target.value)}
+                  className="w-full bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                >
+                  {['Academic', 'Leave', 'Exam', 'Research', 'Other'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Select Policy File (.txt)</label>
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer bg-surface border border-border hover:border-indigo-500 rounded py-2 px-4 text-xs font-semibold text-ink flex items-center gap-1 hover:bg-indigo-500/10 transition shrink-0">
+                    <Upload size={14} /> Select File
+                    <input 
+                      type="file" 
+                      accept=".txt" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setSelectedPolicyFile(file);
+                      }} 
+                      className="hidden" 
+                    />
+                  </label>
+                  <span className="text-xs text-ink-muted truncate font-mono">
+                    {selectedPolicyFile ? selectedPolicyFile.name : "No file selected"}
+                  </span>
+                </div>
+              </div>
+
+              {uploadPolicyError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded text-xs flex items-center gap-2">
+                  <AlertTriangle size={14} /> {uploadPolicyError}
+                </div>
+              )}
+
+              {uploadPolicySuccess && (
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded text-xs flex items-center gap-2 animate-pulse">
+                  <Check size={14} /> {uploadPolicySuccess}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4 border-t border-border/40">
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  disabled={isUploadingPolicy}
+                  className="py-2 px-5 text-xs flex items-center gap-1.5"
+                >
+                  {isUploadingPolicy ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={14} /> Upload Policy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

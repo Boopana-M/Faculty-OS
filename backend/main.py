@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-from fastapi import FastAPI, Depends, HTTPException, status, Body
+from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -244,12 +244,76 @@ def bulk_upload_schedule(payload: dict = Body(...), token: Optional[dict] = Depe
         added_slots.append(new_slot)
 
     db.commit()
-    
     return {
         "status": "success",
         "count": len(added_slots),
         "message": f"Successfully imported {len(added_slots)} schedule slots."
     }
+
+# Policy Upload API
+
+@app.post("/api/policy")
+async def upload_policy(
+    title: str = Form(...),
+    category: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not title or not category:
+        raise HTTPException(status_code=400, detail="Title and Category are required")
+        
+    try:
+        content = await file.read()
+        text_content = content.decode("utf-8", errors="ignore")
+        
+        # Save file locally
+        policies_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "policies")
+        os.makedirs(policies_dir, exist_ok=True)
+        
+        safe_filename = "".join([c if c.isalnum() or c in (".", "_", "-") else "_" for c in file.filename])
+        file_path = os.path.join("policies", safe_filename)
+        abs_file_path = os.path.join(policies_dir, safe_filename)
+        
+        with open(abs_file_path, "w", encoding="utf-8") as f:
+            f.write(text_content)
+            
+        from core.models import PolicyDocument
+        
+        existing = db.query(PolicyDocument).filter(PolicyDocument.title == title).first()
+        if existing:
+            existing.category = category
+            existing.file_path = file_path
+            policy_doc = existing
+        else:
+            policy_doc = PolicyDocument(
+                title=title,
+                category=category,
+                file_path=file_path
+            )
+            db.add(policy_doc)
+            
+        db.commit()
+        db.refresh(policy_doc)
+        
+        # Ingest document chunks into RAG
+        from rag.rag_pipeline import rag_pipeline
+        rag_pipeline.ingest_document(
+            title=title,
+            text=text_content,
+            category=category,
+            source_name=file_path
+        )
+        
+        return {
+            "status": "success",
+            "id": policy_doc.id,
+            "title": policy_doc.title,
+            "category": policy_doc.category,
+            "file_path": policy_doc.file_path,
+            "message": "Policy successfully uploaded and ingested into RAG pipeline."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Policy upload failed: {str(e)}")
 
 # Agent Chat endpoints
 

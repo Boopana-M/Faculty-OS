@@ -416,6 +416,43 @@ export const api = {
       localStorage.setItem('mock_schedules', JSON.stringify(updated));
       return { status: 'success', count: slots.length };
     }
+  },
+
+  async uploadPolicy(title: string, category: string, file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('category', category);
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_BASE_URL}/api/policy`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error('Failed to upload policy document');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend uploadPolicy failed, simulating local RAG ingestion.', error);
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            resolve({
+              status: 'success',
+              id: Math.floor(Math.random() * 1000) + 100,
+              title: title,
+              category: category,
+              file_path: `policies/${file.name}`,
+              message: "Policy successfully uploaded locally (mockup mode)."
+            });
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read text file'));
+        reader.readAsText(file);
+      });
+    }
   }
 };
 
