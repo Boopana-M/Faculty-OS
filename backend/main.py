@@ -95,6 +95,162 @@ def get_current_user(token: str = Depends(verify_token), db: Session = Depends(g
         "designation": faculty.designation
     }
 
+# Schedule CRUD API
+
+@app.get("/api/schedule")
+def get_schedule(token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+
+    from core.models import Timetable
+    schedules = db.query(Timetable).filter(Timetable.faculty_id == faculty_id).all()
+    return [
+        {
+            "id": s.id,
+            "day_of_week": s.day_of_week,
+            "period": s.period,
+            "subject": s.subject,
+            "class_section": s.class_section,
+            "room": s.room
+        }
+        for s in schedules
+    ]
+
+@app.post("/api/schedule")
+def create_schedule(payload: dict = Body(...), token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+
+    day_of_week = payload.get("day_of_week")
+    period = payload.get("period")
+    subject = payload.get("subject")
+    class_section = payload.get("class_section")
+    room = payload.get("room")
+
+    if not all([day_of_week, period, subject, class_section, room]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+
+    from core.models import Timetable
+    new_slot = Timetable(
+        faculty_id=faculty_id,
+        day_of_week=day_of_week,
+        period=period,
+        subject=subject,
+        class_section=class_section,
+        room=room
+    )
+    db.add(new_slot)
+    db.commit()
+    db.refresh(new_slot)
+
+    return {
+        "id": new_slot.id,
+        "day_of_week": new_slot.day_of_week,
+        "period": new_slot.period,
+        "subject": new_slot.subject,
+        "class_section": new_slot.class_section,
+        "room": new_slot.room
+    }
+
+@app.put("/api/schedule/{slot_id}")
+def update_schedule(slot_id: int, payload: dict = Body(...), token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+
+    from core.models import Timetable
+    slot = db.query(Timetable).filter(Timetable.id == slot_id, Timetable.faculty_id == faculty_id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Schedule slot not found")
+
+    if "day_of_week" in payload:
+        slot.day_of_week = payload["day_of_week"]
+    if "period" in payload:
+        slot.period = payload["period"]
+    if "subject" in payload:
+        slot.subject = payload["subject"]
+    if "class_section" in payload:
+        slot.class_section = payload["class_section"]
+    if "room" in payload:
+        slot.room = payload["room"]
+
+    db.commit()
+    db.refresh(slot)
+
+    return {
+        "id": slot.id,
+        "day_of_week": slot.day_of_week,
+        "period": slot.period,
+        "subject": slot.subject,
+        "class_section": slot.class_section,
+        "room": slot.room
+    }
+
+@app.delete("/api/schedule/{slot_id}")
+def delete_schedule(slot_id: int, token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+
+    from core.models import Timetable
+    slot = db.query(Timetable).filter(Timetable.id == slot_id, Timetable.faculty_id == faculty_id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Schedule slot not found")
+
+    db.delete(slot)
+    db.commit()
+
+    return {"status": "success", "message": f"Deleted slot {slot_id}"}
+
+@app.post("/api/schedule/bulk")
+def bulk_upload_schedule(payload: dict = Body(...), token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+
+    slots_data = payload.get("slots")
+    if not isinstance(slots_data, list):
+        raise HTTPException(status_code=400, detail="slots must be a list")
+
+    from core.models import Timetable
+    
+    # Delete existing schedules for this faculty if requested (overwrite mode)
+    overwrite = payload.get("overwrite", False)
+    if overwrite:
+        db.query(Timetable).filter(Timetable.faculty_id == faculty_id).delete()
+
+    added_slots = []
+    for slot_data in slots_data:
+        day_of_week = slot_data.get("day_of_week")
+        period = slot_data.get("period")
+        subject = slot_data.get("subject")
+        class_section = slot_data.get("class_section")
+        room = slot_data.get("room")
+
+        if not all([day_of_week, period, subject, class_section, room]):
+            continue
+
+        new_slot = Timetable(
+            faculty_id=faculty_id,
+            day_of_week=day_of_week,
+            period=period,
+            subject=subject,
+            class_section=class_section,
+            room=room
+        )
+        db.add(new_slot)
+        added_slots.append(new_slot)
+
+    db.commit()
+    
+    return {
+        "status": "success",
+        "count": len(added_slots),
+        "message": f"Successfully imported {len(added_slots)} schedule slots."
+    }
+
 # Agent Chat endpoints
 
 @app.post("/agents/chat")

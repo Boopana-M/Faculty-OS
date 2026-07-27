@@ -29,12 +29,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_token(token: str) -> Optional[dict]:
+from fastapi import Header
+
+def verify_token(authorization: Optional[str] = Header(None)) -> Optional[dict]:
+    if not authorization:
+        return None
     try:
+        # Extract token from "Bearer <token>"
+        token = authorization.split(" ")[1] if " " in authorization else authorization
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             return None
         return payload
-    except JWTError:
+    except (JWTError, IndexError, AttributeError):
         return None
+

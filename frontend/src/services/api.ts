@@ -97,15 +97,49 @@ export const api = {
       const msgLower = message.toLowerCase();
 
       if (msgLower.includes('schedule') || msgLower.includes('today') || msgLower.includes('timetable') || msgLower.includes('classes')) {
-        toolCalls = [{ name: 'get_todays_schedule', status: 'success', result: 'Found 2 classes for Monday.' }];
-        mockReply = "Based on your timetable database, you have the following classes today:\n\n1. **09:00 - 10:00**: Design & Analysis of Algorithms for **CSE-A** in **LH-201**\n2. **11:30 - 12:30**: Machine Learning for **CSE-B** in **LH-302**\n\nI have rendered today's schedule in your dashboard panel to the right.";
+        let day = 'Monday';
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        for (const d of days) {
+          if (msgLower.includes(d)) {
+            day = d.charAt(0).toUpperCase() + d.slice(1);
+            break;
+          }
+        }
+        
+        let localSchedules = [];
+        const localData = localStorage.getItem('mock_schedules');
+        if (localData) {
+          localSchedules = JSON.parse(localData);
+        } else {
+          localSchedules = [
+            { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 2, day_of_week: 'Monday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+            { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 4, day_of_week: 'Tuesday', period: '14:00 - 15:30', subject: 'Machine Learning Lab', class_section: 'CSE-B', room: 'Lab-3' },
+            { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+            { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 7, day_of_week: 'Thursday', period: '10:00 - 11:00', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+            { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+            { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+            { id: 10, day_of_week: 'Friday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+          ];
+          localStorage.setItem('mock_schedules', JSON.stringify(localSchedules));
+        }
+        
+        const filtered = localSchedules.filter((s: any) => s.day_of_week === day);
+        toolCalls = [{ name: 'get_todays_schedule', status: 'success', result: `Found ${filtered.length} classes for ${day}.` }];
+        
+        if (filtered.length === 0) {
+          mockReply = `Based on your timetable database, you have no classes scheduled for **${day}**.`;
+        } else {
+          const listText = filtered.map((s: any, idx: number) => `${idx + 1}. **${s.period}**: ${s.subject} for **${s.class_section}** in **${s.room}**`).join('\n');
+          mockReply = `Based on your timetable database, you have the following classes on **${day}**:\n\n${listText}\n\nI have rendered this schedule in your dashboard panel to the right.`;
+        }
+        
         richData = {
           type: 'schedule',
-          day: 'Monday',
-          schedule: [
-            { period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
-            { period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' }
-          ]
+          day: day,
+          schedule: filtered
         };
       } else if (msgLower.includes('leave') || msgLower.includes('draft')) {
         toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
@@ -261,5 +295,127 @@ export const api = {
       console.warn('Backend server not reachable. Running client-side mock streaming.', err);
       runMockStream();
     });
+  },
+
+  async getSchedules(): Promise<any[]> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/schedule`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Failed to fetch schedules');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getSchedules failed, using mock schedule data.', error);
+      const localMockSchedules = localStorage.getItem('mock_schedules');
+      if (localMockSchedules) {
+        return JSON.parse(localMockSchedules);
+      }
+      const defaultMock = [
+        { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 2, day_of_week: 'Monday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+        { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 4, day_of_week: 'Tuesday', period: '14:00 - 15:30', subject: 'Machine Learning Lab', class_section: 'CSE-B', room: 'Lab-3' },
+        { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+        { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 7, day_of_week: 'Thursday', period: '10:00 - 11:00', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+        { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+        { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+        { id: 10, day_of_week: 'Friday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
+      ];
+      localStorage.setItem('mock_schedules', JSON.stringify(defaultMock));
+      return defaultMock;
+    }
+  },
+
+  async createSchedule(data: { day_of_week: string; period: string; subject: string; class_section: string; room: string }): Promise<any> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to create schedule slot');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend createSchedule failed, using mock schedule data.', error);
+      const current = await this.getSchedules();
+      const newSlot = { id: Math.max(0, ...current.map((s: any) => s.id)) + 1, ...data };
+      const updated = [...current, newSlot];
+      localStorage.setItem('mock_schedules', JSON.stringify(updated));
+      return newSlot;
+    }
+  },
+
+  async updateSchedule(slotId: number, data: Partial<{ day_of_week: string; period: string; subject: string; class_section: string; room: string }>): Promise<any> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/schedule/${slotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to update schedule slot');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend updateSchedule failed, using mock schedule data.', error);
+      const current = await this.getSchedules();
+      const updated = current.map((s: any) => s.id === slotId ? { ...s, ...data } : s);
+      localStorage.setItem('mock_schedules', JSON.stringify(updated));
+      return updated.find((s: any) => s.id === slotId);
+    }
+  },
+
+  async deleteSchedule(slotId: number): Promise<any> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/schedule/${slotId}`, {
+        method: 'DELETE',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('Failed to delete schedule slot');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend deleteSchedule failed, using mock schedule data.', error);
+      const current = await this.getSchedules();
+      const updated = current.filter((s: any) => s.id !== slotId);
+      localStorage.setItem('mock_schedules', JSON.stringify(updated));
+      return { status: 'success' };
+    }
+  },
+
+  async bulkUploadSchedule(slots: any[], overwrite: boolean = false): Promise<any> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/schedule/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ slots, overwrite })
+      });
+      if (!response.ok) throw new Error('Failed to bulk upload schedules');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend bulkUploadSchedule failed, using mock schedule data.', error);
+      let updated = [];
+      if (!overwrite) {
+        updated = await this.getSchedules();
+      }
+      let startId = Math.max(0, ...updated.map((s: any) => s.id)) + 1;
+      const formattedSlots = slots.map((s, idx) => ({ id: startId + idx, ...s }));
+      updated = [...updated, ...formattedSlots];
+      localStorage.setItem('mock_schedules', JSON.stringify(updated));
+      return { status: 'success', count: slots.length };
+    }
   }
 };
+
