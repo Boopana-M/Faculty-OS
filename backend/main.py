@@ -315,6 +315,106 @@ async def upload_policy(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Policy upload failed: {str(e)}")
 
+# Syllabus CRUD API
+
+@app.get("/api/subjects")
+def get_subjects(token: Optional[dict] = Depends(verify_token), db: Session = Depends(get_db)):
+    faculty_id = 1
+    if token:
+        faculty_id = token.get("id", 1)
+        
+    from core.models import Timetable
+    subjects = db.query(Timetable.subject).filter(Timetable.faculty_id == faculty_id).distinct().all()
+    return [s[0] for s in subjects if s[0]]
+
+@app.get("/api/syllabus/{subject}")
+def get_syllabus(subject: str, db: Session = Depends(get_db)):
+    from core.models import SyllabusUnit
+    units = db.query(SyllabusUnit).filter(SyllabusUnit.subject == subject).all()
+    return [
+        {
+            "id": u.id,
+            "subject": u.subject,
+            "unit_number": u.unit_number,
+            "title": u.title,
+            "topics": u.topics,
+            "pdf_url": u.pdf_url
+        }
+        for u in units
+    ]
+
+@app.post("/api/syllabus")
+def create_syllabus_unit(payload: dict = Body(...), db: Session = Depends(get_db)):
+    subject = payload.get("subject")
+    unit_number = payload.get("unit_number")
+    title = payload.get("title")
+    topics = payload.get("topics")
+    pdf_url = payload.get("pdf_url")
+    
+    if not all([subject, unit_number, title, topics]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+        
+    from core.models import SyllabusUnit
+    new_unit = SyllabusUnit(
+        subject=subject,
+        unit_number=int(unit_number),
+        title=title,
+        topics=topics,
+        pdf_url=pdf_url
+    )
+    db.add(new_unit)
+    db.commit()
+    db.refresh(new_unit)
+    return {
+        "id": new_unit.id,
+        "subject": new_unit.subject,
+        "unit_number": new_unit.unit_number,
+        "title": new_unit.title,
+        "topics": new_unit.topics,
+        "pdf_url": new_unit.pdf_url
+    }
+
+@app.post("/api/syllabus/bulk")
+def bulk_upload_syllabus(payload: dict = Body(...), db: Session = Depends(get_db)):
+    subject = payload.get("subject")
+    units_data = payload.get("units")
+    overwrite = payload.get("overwrite", False)
+    
+    if not subject or not isinstance(units_data, list):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+        
+    from core.models import SyllabusUnit
+    
+    if overwrite:
+        db.query(SyllabusUnit).filter(SyllabusUnit.subject == subject).delete()
+        
+    added_units = []
+    for u_data in units_data:
+        unit_number = u_data.get("unit_number")
+        title = u_data.get("title")
+        topics = u_data.get("topics")
+        pdf_url = u_data.get("pdf_url")
+        
+        if not all([unit_number, title, topics]):
+            continue
+            
+        new_unit = SyllabusUnit(
+            subject=subject,
+            unit_number=int(unit_number),
+            title=title,
+            topics=topics,
+            pdf_url=pdf_url
+        )
+        db.add(new_unit)
+        added_units.append(new_unit)
+        
+    db.commit()
+    return {
+        "status": "success",
+        "count": len(added_units),
+        "message": f"Successfully imported {len(added_units)} syllabus units for {subject}."
+    }
+
 # Agent Chat endpoints
 
 @app.post("/agents/chat")

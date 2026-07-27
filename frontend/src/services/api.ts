@@ -151,16 +151,48 @@ export const api = {
           subject: 'Application for Casual Leave - Dr. Rajesh Kumar',
           body: "Dear Head of Department,\n\nI am writing to formally request 1 day of Casual Leave for tomorrow, July 27, 2026, due to personal urgent work at home.\n\nI have arranged for Dr. Amit Sharma to handle my 9:00 AM Design & Analysis of Algorithms class for CSE-A. He has kindly agreed to conduct a tutorial session in my place.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
         };
-      } else if (msgLower.includes('syllabus') || msgLower.includes('daa') || msgLower.includes('topics')) {
-        toolCalls = [{ name: 'get_syllabus', status: 'success', result: 'Found 1 unit matching query.' }];
-        mockReply = "According to the syllabus database, here is the syllabus info for **Design & Analysis of Algorithms**:\n\n* **Unit 1: Introduction to Algorithms**: Covers asymptotic notations, complexity analysis, and recurrences (Master Theorem).\n* **Unit 2: Divide-and-Conquer and Greedy**: Covers Merge/Quick Sort, Knapsack, Dijkstra, Prim/Kruskal.\n\nYou can click on 'Show syllabus' or view the right side panels to see more units.";
+      } else if (msgLower.includes('syllabus') || msgLower.includes('daa') || msgLower.includes('topics') || msgLower.includes('compiler') || msgLower.includes('learning')) {
+        let subject = 'Design & Analysis of Algorithms';
+        if (msgLower.includes('compiler') || msgLower.includes('cd')) {
+          subject = 'Compiler Design';
+        } else if (msgLower.includes('machine learning') || msgLower.includes('ml') || msgLower.includes('learning')) {
+          subject = 'Machine Learning';
+        } else if (msgLower.includes('lab')) {
+          subject = 'Machine Learning Lab';
+        }
+
+        let units = [];
+        const localData = localStorage.getItem(`mock_syllabus_${subject}`);
+        if (localData) {
+          units = JSON.parse(localData);
+        } else {
+          if (subject.includes('Algorithms') || subject.includes('DAA')) {
+            units = [
+              { id: 1, subject, unit_number: 1, title: 'Introduction to Algorithms', topics: 'Algorithm specification, asymptotic notations (Big O, Omega, Theta), mathematical analysis of non-recursive and recursive algorithms, recurrence relations, Master Theorem.', pdf_url: '/syllabus/daa_unit1.pdf' },
+              { id: 2, subject, unit_number: 2, title: 'Divide-and-Conquer and Greedy Method', topics: "Binary search, Merge sort, Quick sort, Strassen's matrix multiplication. Greedy Method: General method, Knapsack, Minimum spanning trees (Prim's and Kruskal's), Single source shortest paths (Dijkstra's).", pdf_url: '/syllabus/daa_unit2.pdf' }
+            ];
+          } else if (subject.includes('Machine Learning') || subject.includes('ML')) {
+            units = [
+              { id: 1, subject, unit_number: 1, title: 'Introduction & Supervised Learning', topics: 'Definition of learning systems, goals and applications, supervised learning. Linear/Logistic Regression, Regularization.', pdf_url: '/syllabus/ml_unit1.pdf' },
+              { id: 2, subject, unit_number: 2, title: 'Decision Trees & Naive Bayes', topics: 'ID3/C4.5 decision tree models, information gain, Naive Bayes classifier.', pdf_url: '/syllabus/ml_unit2.pdf' }
+            ];
+          }
+          localStorage.setItem(`mock_syllabus_${subject}`, JSON.stringify(units));
+        }
+
+        toolCalls = [{ name: 'get_syllabus', status: 'success', result: `Found ${units.length} units matching query.` }];
+        
+        if (units.length === 0) {
+          mockReply = `According to the syllabus database, there is no syllabus details registered for **${subject}**. You can upload the syllabus units using the Syllabus Manager panel on the right side.`;
+        } else {
+          const listText = units.map((u: any) => `* **Unit ${u.unit_number}: ${u.title}**: ${u.topics.substring(0, 100)}...`).join('\n');
+          mockReply = `According to the syllabus database, here is the syllabus info for **${subject}**:\n\n${listText}\n\nI have rendered this as a Syllabus Card below for your detailed view.`;
+        }
+
         richData = {
           type: 'syllabus',
-          subject: 'Design & Analysis of Algorithms',
-          units: [
-            { subject: 'Design & Analysis of Algorithms', unit_number: 1, title: 'Introduction to Algorithms', topics: 'Algorithm specification, asymptotic notations (Big O, Omega, Theta), mathematical analysis of non-recursive and recursive algorithms, recurrence relations, Master Theorem.', pdf_url: '/syllabus/daa_unit1.pdf' },
-            { subject: 'Design & Analysis of Algorithms', unit_number: 2, title: 'Divide-and-Conquer and Greedy Method', topics: "Binary search, Merge sort, Quick sort, Strassen's matrix multiplication. Greedy Method: General method, Knapsack, Minimum spanning trees (Prim's and Kruskal's), Single source shortest paths (Dijkstra's).", pdf_url: '/syllabus/daa_unit2.pdf' }
-          ]
+          subject: subject,
+          units: units
         };
       } else if (msgLower.includes('lesson plan') || msgLower.includes('plan')) {
         toolCalls = [{ name: 'create_lesson_plan', status: 'success', result: 'Configured lesson plan generator.' }];
@@ -452,6 +484,90 @@ export const api = {
         reader.onerror = () => reject(new Error('Failed to read text file'));
         reader.readAsText(file);
       });
+    }
+  },
+
+  async getSubjects(): Promise<string[]> {
+    const token = getAuthToken();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subjects`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Failed to fetch subjects');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getSubjects failed, extracting unique subjects from mock schedules.', error);
+      const schedules = await this.getSchedules();
+      const uniqueSubjects = Array.from(new Set(schedules.map((s: any) => s.subject)));
+      return uniqueSubjects.filter(Boolean);
+    }
+  },
+
+  async getSyllabus(subject: string): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/syllabus/${encodeURIComponent(subject)}`);
+      if (!response.ok) throw new Error('Failed to fetch syllabus');
+      return await response.json();
+    } catch (error) {
+      console.warn(`Backend getSyllabus failed for ${subject}, using mock syllabus data.`, error);
+      const localMockSyllabi = localStorage.getItem(`mock_syllabus_${subject}`);
+      if (localMockSyllabi) {
+        return JSON.parse(localMockSyllabi);
+      }
+      if (subject.includes('Algorithms') || subject.includes('DAA')) {
+        return [
+          { id: 1, subject, unit_number: 1, title: 'Introduction to Algorithms', topics: 'Algorithm specification, asymptotic notations (Big O, Omega, Theta), mathematical analysis of non-recursive and recursive algorithms, recurrence relations, Master Theorem.', pdf_url: '/syllabus/daa_unit1.pdf' },
+          { id: 2, subject, unit_number: 2, title: 'Divide-and-Conquer and Greedy Method', topics: "Binary search, Merge sort, Quick sort, Strassen's matrix multiplication. Greedy Method: General method, Knapsack, Minimum spanning trees (Prim's and Kruskal's), Single source shortest paths (Dijkstra's).", pdf_url: '/syllabus/daa_unit2.pdf' }
+        ];
+      } else if (subject.includes('Machine Learning') || subject.includes('ML')) {
+        return [
+          { id: 1, subject, unit_number: 1, title: 'Introduction & Supervised Learning', topics: 'Definition of learning systems, goals and applications, supervised learning. Linear/Logistic Regression, Regularization.', pdf_url: '/syllabus/ml_unit1.pdf' },
+          { id: 2, subject, unit_number: 2, title: 'Decision Trees & Naive Bayes', topics: 'ID3/C4.5 decision tree models, information gain, Naive Bayes classifier.', pdf_url: '/syllabus/ml_unit2.pdf' }
+        ];
+      }
+      return [];
+    }
+  },
+
+  async createSyllabusUnit(data: { subject: string; unit_number: number; title: string; topics: string; pdf_url?: string }): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/syllabus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to create syllabus unit');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend createSyllabusUnit failed, saving locally.', error);
+      const current = await this.getSyllabus(data.subject);
+      const newUnit = { id: Math.max(0, ...current.map((u: any) => u.id)) + 1, ...data };
+      const updated = [...current, newUnit];
+      localStorage.setItem(`mock_syllabus_${data.subject}`, JSON.stringify(updated));
+      return newUnit;
+    }
+  },
+
+  async bulkUploadSyllabus(subject: string, units: any[], overwrite: boolean = false): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/syllabus/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, units, overwrite })
+      });
+      if (!response.ok) throw new Error('Failed to bulk upload syllabus');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend bulkUploadSyllabus failed, saving locally.', error);
+      let updated = [];
+      if (!overwrite) {
+        updated = await this.getSyllabus(subject);
+      }
+      let startId = Math.max(0, ...updated.map((u: any) => u.id)) + 1;
+      const formatted = units.map((u, idx) => ({ id: startId + idx, subject, ...u }));
+      updated = [...updated, ...formatted];
+      localStorage.setItem(`mock_syllabus_${subject}`, JSON.stringify(updated));
+      return { status: 'success', count: units.length };
     }
   }
 };

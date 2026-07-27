@@ -60,6 +60,26 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
   const [uploadPolicyError, setUploadPolicyError] = useState<string | null>(null);
   const [uploadPolicySuccess, setUploadPolicySuccess] = useState<string | null>(null);
 
+  // Syllabus Management States
+  const [taughtSubjects, setTaughtSubjects] = useState<string[]>([]);
+  const [selectedSyllabusSubject, setSelectedSyllabusSubject] = useState('');
+  const [subjectSyllabusUnits, setSubjectSyllabusUnits] = useState<any[]>([]);
+  const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
+  
+  // Syllabus Form State
+  const [syllabusUnitNumber, setSyllabusUnitNumber] = useState(1);
+  const [syllabusUnitTitle, setSyllabusUnitTitle] = useState('');
+  const [syllabusUnitTopics, setSyllabusUnitTopics] = useState('');
+  const [syllabusUnitPdf, setSyllabusUnitPdf] = useState('');
+  
+  // Syllabus Bulk upload state
+  const [syllabusBulkText, setSyllabusBulkText] = useState('');
+  const [syllabusBulkOverwrite, setSyllabusBulkOverwrite] = useState(true);
+  const [syllabusBulkError, setSyllabusBulkError] = useState<string | null>(null);
+  const [syllabusBulkSuccess, setSyllabusBulkSuccess] = useState<string | null>(null);
+  const [syllabusActiveTab, setSyllabusActiveTab] = useState<'add' | 'bulk'>('bulk');
+
+
 
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -76,6 +96,38 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
   useEffect(() => {
     fetchSchedules();
   }, []);
+
+  const fetchTaughtSubjects = async () => {
+    try {
+      const subjects = await api.getSubjects();
+      setTaughtSubjects(subjects);
+      if (subjects.length > 0 && !selectedSyllabusSubject) {
+        setSelectedSyllabusSubject(subjects[0]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch taught subjects", e);
+    }
+  };
+
+  const fetchSyllabusUnits = async (subject: string) => {
+    if (!subject) return;
+    try {
+      const units = await api.getSyllabus(subject);
+      setSubjectSyllabusUnits(units);
+    } catch (e) {
+      console.error(`Failed to load syllabus for ${subject}`, e);
+    }
+  };
+
+  useEffect(() => {
+    fetchTaughtSubjects();
+  }, [schedules]);
+
+  useEffect(() => {
+    if (selectedSyllabusSubject) {
+      fetchSyllabusUnits(selectedSyllabusSubject);
+    }
+  }, [selectedSyllabusSubject]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -240,6 +292,115 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
     }
   };
 
+  const handleAddSyllabusUnitSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSyllabusSubject) {
+      alert("Please select a subject first.");
+      return;
+    }
+    if (!syllabusUnitTitle || !syllabusUnitTopics) {
+      alert("Please fill in all fields.");
+      return;
+    }
+    
+    const data = {
+      subject: selectedSyllabusSubject,
+      unit_number: syllabusUnitNumber,
+      title: syllabusUnitTitle,
+      topics: syllabusUnitTopics,
+      pdf_url: syllabusUnitPdf || undefined
+    };
+    
+    try {
+      await api.createSyllabusUnit(data);
+      setSyllabusUnitTitle('');
+      setSyllabusUnitTopics('');
+      setSyllabusUnitPdf('');
+      setIsSyllabusModalOpen(false);
+      await fetchSyllabusUnits(selectedSyllabusSubject);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save syllabus unit.");
+    }
+  };
+
+  const handleSyllabusBulkSubmit = async () => {
+    setSyllabusBulkError(null);
+    setSyllabusBulkSuccess(null);
+    
+    if (!selectedSyllabusSubject) {
+      setSyllabusBulkError("Please select a subject first.");
+      return;
+    }
+    if (!syllabusBulkText.trim()) {
+      setSyllabusBulkError("Please paste some CSV or JSON data.");
+      return;
+    }
+    
+    let units: any[] = [];
+    try {
+      if (syllabusBulkText.trim().startsWith('[') || syllabusBulkText.trim().startsWith('{')) {
+        const parsed = JSON.parse(syllabusBulkText);
+        units = Array.isArray(parsed) ? parsed : [parsed];
+      } else {
+        const lines = syllabusBulkText.split('\n');
+        if (lines.length < 2) {
+          setSyllabusBulkError("Invalid CSV format. Need header and data.");
+          return;
+        }
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          const values = line.split(',').map(v => v.trim());
+          const unit: any = {};
+          
+          headers.forEach((header, index) => {
+            if (header === 'unit' || header === 'unit_number') unit.unit_number = parseInt(values[index]);
+            else if (header === 'title') unit.title = values[index];
+            else if (header === 'topics' || header === 'content') unit.topics = values[index];
+            else if (header === 'pdf_url' || header === 'pdf') unit.pdf_url = values[index];
+          });
+          
+          if (unit.unit_number && unit.title && unit.topics) {
+            units.push(unit);
+          }
+        }
+      }
+      
+      if (units.length === 0) {
+        setSyllabusBulkError("No valid syllabus units parsed. Make sure headers are: unit_number, title, topics");
+        return;
+      }
+      
+      const res = await api.bulkUploadSyllabus(selectedSyllabusSubject, units, syllabusBulkOverwrite);
+      setSyllabusBulkSuccess(`Successfully uploaded ${res.count || units.length} syllabus units!`);
+      setSyllabusBulkText('');
+      await fetchSyllabusUnits(selectedSyllabusSubject);
+      setTimeout(() => {
+        setIsSyllabusModalOpen(false);
+        setSyllabusBulkSuccess(null);
+      }, 1500);
+    } catch (err: any) {
+      setSyllabusBulkError(`Parsing/upload failed: ${err.message || err}`);
+    }
+  };
+
+  const handleSyllabusFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setSyllabusBulkText(text);
+    };
+    reader.readAsText(file);
+  };
+
+
 
   const handleSendMessage = (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -366,6 +527,56 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
       ...prev,
       [cardId]: !prev[cardId]
     }));
+  };
+
+  const renderSyllabusCard = (data: any, messageId: string) => {
+    if (!data || !data.units || data.units.length === 0) return null;
+    const isExpanded = expandedCards[messageId] ?? true;
+    return (
+      <Card className="mt-3 border-l-4 border-l-indigo-500 bg-surface/50 p-4">
+        <div 
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => toggleCard(messageId)}
+        >
+          <span className="text-sm font-semibold text-ink flex items-center gap-2">
+            <BookOpen size={15} className="text-indigo-400" /> 
+            Syllabus: {data.subject}
+          </span>
+          <div className="flex items-center gap-2">
+            <Badge variant="accent">{data.units.length} Units</Badge>
+            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="mt-4 space-y-3 pt-3.5 border-t border-border/60">
+            {data.units.map((unit: any, idx: number) => (
+              <div key={idx} className="bg-surface/40 p-3 rounded border border-border/40 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <h5 className="text-xs font-bold text-ink flex items-center gap-1.5">
+                    <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-mono text-[10px]">
+                      Unit {unit.unit_number}
+                    </span>
+                    {unit.title}
+                  </h5>
+                  {unit.pdf_url && (
+                    <a 
+                      href={unit.pdf_url} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="text-[10px] font-mono text-accent-500 hover:underline"
+                    >
+                      PDF
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-ink-muted leading-relaxed whitespace-pre-line font-mono">{unit.topics}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
   };
 
   // Rendering Functions for Rich Cards
@@ -652,6 +863,7 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
                 {msg.role === 'assistant' && msg.richData && (
                   <>
                     {msg.richData.type === 'schedule' && renderScheduleCard(msg.richData)}
+                    {msg.richData.type === 'syllabus' && renderSyllabusCard(msg.richData, msg.id)}
                     {msg.richData.type === 'email_draft' && renderEmailDraftCard(msg.richData, msg.id)}
                     {msg.richData.type === 'lesson_plan' && renderLessonPlanCard(msg.richData, msg.id)}
                     {msg.richData.type === 'policy' && renderPolicyCitationsCard(msg.richData)}
@@ -1097,6 +1309,74 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
         </div>
       )}
 
+        {/* Syllabus Manager Card */}
+        <Card className="border border-border/80 bg-surface shadow-soft">
+          <div className="border-b border-border pb-3 mb-4 flex items-center justify-between">
+            <h3 className="font-display font-medium text-lg text-ink flex items-center gap-2">
+              <BookOpen className="text-accent-500" size={18} /> Syllabus Lookup
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSyllabusActiveTab('bulk');
+                setIsSyllabusModalOpen(true);
+              }}
+              className="py-1 px-2 text-xs flex items-center gap-1 border-accent-500/30 text-accent-400 hover:bg-accent-500/10 hover:border-accent-500"
+            >
+              <Plus size={11} /> Upload
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Subject Selector */}
+            <div>
+              <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Select Subject</label>
+              <select
+                value={selectedSyllabusSubject}
+                onChange={(e) => setSelectedSyllabusSubject(e.target.value)}
+                className="w-full bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 font-sans"
+              >
+                {taughtSubjects.length === 0 ? (
+                  <option value="">No subjects found</option>
+                ) : (
+                  taughtSubjects.map((sub) => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            {/* Units Display list */}
+            <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
+              {subjectSyllabusUnits.length === 0 ? (
+                <div className="text-center py-6 border border-dashed border-border/60 rounded text-xs text-ink-muted">
+                  No syllabus units found for this subject. Click "Upload" to add them!
+                </div>
+              ) : (
+                subjectSyllabusUnits
+                  .sort((a, b) => a.unit_number - b.unit_number)
+                  .map((unit) => (
+                    <div key={unit.id} className="bg-surface/40 p-2.5 rounded border border-border/40 text-xs">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-semibold text-ink flex items-center gap-1.5">
+                          <span className="bg-indigo-500/15 text-indigo-400 px-1.5 py-0.5 rounded font-mono text-[9px]">
+                            Unit {unit.unit_number}
+                          </span>
+                          {unit.title}
+                        </span>
+                        {unit.pdf_url && (
+                          <span className="text-[9px] font-mono text-ink-muted">PDF Attached</span>
+                        )}
+                      </div>
+                      <p className="text-ink-muted text-[11px] leading-relaxed line-clamp-2">{unit.topics}</p>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </Card>
+
         {/* Policy Search / RAG Sidebar Widget */}
         <Card className="border border-border/80 bg-surface shadow-soft">
           <div className="border-b border-border pb-3 mb-4 flex items-center justify-between">
@@ -1258,6 +1538,185 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Syllabus Upload Modal */}
+      {isSyllabusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-surface border border-border rounded-radius-md shadow-2xl overflow-hidden font-ui">
+            
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-border bg-surface/80 flex items-center justify-between">
+              <h3 className="font-display font-medium text-lg text-ink flex items-center gap-2">
+                <BookOpen className="text-indigo-400" size={20} /> Upload Syllabus for {selectedSyllabusSubject}
+              </h3>
+              <button 
+                onClick={() => {
+                  setIsSyllabusModalOpen(false);
+                  setSyllabusUnitTitle('');
+                  setSyllabusUnitTopics('');
+                  setSyllabusUnitPdf('');
+                  setSyllabusBulkText('');
+                  setSyllabusBulkError(null);
+                  setSyllabusBulkSuccess(null);
+                }}
+                className="text-ink-muted hover:text-ink transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Tabs */}
+            <div className="flex border-b border-border/60 bg-surface/30 px-5">
+              <button
+                onClick={() => setSyllabusActiveTab('bulk')}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition ${
+                  syllabusActiveTab === 'bulk' 
+                    ? 'border-indigo-500 text-indigo-400' 
+                    : 'border-transparent text-ink-muted hover:text-ink'
+                }`}
+              >
+                Bulk Import (CSV/JSON)
+              </button>
+              <button
+                onClick={() => setSyllabusActiveTab('add')}
+                className={`py-3 px-4 text-xs font-semibold border-b-2 transition ${
+                  syllabusActiveTab === 'add' 
+                    ? 'border-indigo-500 text-indigo-400' 
+                    : 'border-transparent text-ink-muted hover:text-ink'
+                }`}
+              >
+                Add Single Unit
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-5 max-h-[50vh] overflow-y-auto">
+              
+              {/* Tab 1: Bulk Import */}
+              {syllabusActiveTab === 'bulk' && (
+                <div className="space-y-4">
+                  <div className="bg-surface/50 border border-border/40 rounded p-3 text-xs text-ink-muted leading-relaxed">
+                    <p className="font-semibold text-ink mb-1 flex items-center gap-1 text-[11px] uppercase tracking-wider font-mono">
+                      Instructions
+                    </p>
+                    Paste syllabus units in CSV format with headers, or standard JSON array.
+                    <div className="mt-2 font-mono text-[10px] bg-surface p-2 rounded border border-border/20 text-indigo-300 whitespace-pre">
+                      unit_number, title, topics, pdf_url{"\n"}
+                      1, Introduction, Algorithm specifications & Big-O notation, /pdf/unit1.pdf{"\n"}
+                      2, Divide-and-Conquer, Binary search & Merge sort, /pdf/unit2.pdf
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer bg-surface border border-border hover:border-indigo-500 rounded py-1.5 px-3 text-xs font-semibold text-ink flex items-center gap-1 hover:bg-indigo-500/10 transition">
+                        <Upload size={13} /> Select CSV/JSON file
+                        <input type="file" accept=".csv,.json" onChange={handleSyllabusFileUpload} className="hidden" />
+                      </label>
+                    </div>
+                    
+                    <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={syllabusBulkOverwrite}
+                        onChange={(e) => setSyllabusBulkOverwrite(e.target.checked)}
+                        className="rounded bg-surface border-border text-indigo-600 focus:ring-indigo-500" 
+                      />
+                      Overwrite existing units
+                    </label>
+                  </div>
+                  
+                  <div>
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Syllabus Data Content</label>
+                    <textarea
+                      value={syllabusBulkText}
+                      onChange={(e) => setSyllabusBulkText(e.target.value)}
+                      placeholder="Paste CSV rows here..."
+                      className="w-full bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs font-mono h-40 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                    />
+                  </div>
+                  
+                  {syllabusBulkError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded text-xs flex items-center gap-2">
+                      <AlertTriangle size={14} /> {syllabusBulkError}
+                    </div>
+                  )}
+                  
+                  {syllabusBulkSuccess && (
+                    <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-3 rounded text-xs flex items-center gap-2 animate-pulse">
+                      <Check size={14} /> {syllabusBulkSuccess}
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-end pt-4 border-t border-border/40">
+                    <Button 
+                      variant="primary" 
+                      onClick={handleSyllabusBulkSubmit}
+                      className="py-2 px-5 text-xs flex items-center gap-1.5"
+                    >
+                      <Upload size={14} /> Import Syllabus
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Tab 2: Add Single Unit Form */}
+              {syllabusActiveTab === 'add' && (
+                <form onSubmit={handleAddSyllabusUnitSubmit} className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Unit Number</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="10" 
+                        value={syllabusUnitNumber} 
+                        onChange={(e) => setSyllabusUnitNumber(parseInt(e.target.value))}
+                        className="w-full bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Unit Title</label>
+                      <Input 
+                        value={syllabusUnitTitle} 
+                        onChange={(e) => setSyllabusUnitTitle(e.target.value)} 
+                        placeholder="e.g. Asymptotic Complexity"
+                        className="py-2 text-xs" 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Topics / Syllabus Details</label>
+                    <textarea
+                      value={syllabusUnitTopics}
+                      onChange={(e) => setSyllabusUnitTopics(e.target.value)}
+                      placeholder="Enter the detailed list of topics, keywords, etc..."
+                      className="w-full bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs h-32 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-ink-muted block mb-1.5 font-bold">Syllabus PDF URL (Optional)</label>
+                    <Input 
+                      value={syllabusUnitPdf} 
+                      onChange={(e) => setSyllabusUnitPdf(e.target.value)} 
+                      placeholder="e.g. /syllabus/daa_unit1.pdf"
+                      className="py-2 text-xs font-mono" 
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end pt-4 border-t border-border/40">
+                    <Button type="submit" variant="primary" className="py-2 px-5 text-xs flex items-center gap-1.5">
+                      <Plus size={14} /> Add Unit
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
