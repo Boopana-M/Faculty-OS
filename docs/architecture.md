@@ -19,6 +19,6 @@ graph TD
 
 ## Agents & Roles
 
-1. **Faculty Assistant Agent (Indigo):** Main Daily driver orchestrator. Handles schedule lookups, leave drafting, syllabus extraction, and general administrative RAG queries.
+1. **Faculty Assistant Agent (Indigo):** Main Daily driver orchestrator. Handles schedule lookups, email drafting, syllabus extraction, and general administrative RAG queries.
 2. **Academic Workflow Agent (Emerald - Phase 2):** Grid-centric doer agent. Coordinates grading sheets, student roll marks, attendance submissions, and reminders.
 3. **Analytics Agent (Amber - Phase 3):** Performance/charts generator. Assesses student at-risk trends and generates accreditation (NBA/NAAC) compliance reports.

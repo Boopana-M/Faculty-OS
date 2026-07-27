@@ -27,7 +27,7 @@ EduPilot is a specialized multi-agent operating system designed for academic fac
 5. **Database Core & Seed:** SQLite configuration with a pre-seeded faculty member (`demo@faculty.edu` / `demo1234`), mock schedules, curriculum plans, and policy logs.
 6. **Policy RAG Pipeline:** Ingests unstructured policy documents into ChromaDB, embedding text via sentence-transformers, and returning cited references.
 7. **Streamed Faculty Chat:** PROGRESSIVE text stream of chat responses over Server-Sent Events (SSE) including execution traces of agent tools (`get_todays_schedule`, `search_policies`, `create_lesson_plan`, `draft_email`).
-8. **Rich Layout Cards:** Chat-rendered timetable cards, copy-pastable/editable leave request cards, and collapsible unit lesson structures.
+8. **Rich Layout Cards:** Chat-rendered timetable cards, copy-pastable/editable email draft cards, and collapsible unit lesson structures.
 
 ---
 

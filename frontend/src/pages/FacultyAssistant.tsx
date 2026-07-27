@@ -485,7 +485,6 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
   const handleQuickAction = (action: string) => {
     let prompt = '';
     if (action === 'schedule') prompt = "What's my class schedule today?";
-    else if (action === 'leave') prompt = "Draft a casual leave request for tomorrow";
     else if (action === 'syllabus') prompt = "Show syllabus details for DAA";
     else if (action === 'lesson') prompt = "Make a lesson plan for DAA Unit 1";
     
@@ -637,7 +636,7 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
       <Card className="mt-3 border-l-4 border-l-indigo-500 bg-surface/50 p-4">
         <div className="flex items-center justify-between mb-3 border-b border-border pb-2.5">
           <span className="text-sm font-semibold text-ink flex items-center gap-2">
-            <Mail size={15} className="text-indigo-400" /> Draft Leave Application
+            <Mail size={15} className="text-indigo-400" /> {data.purpose ? `Draft: ${data.purpose}` : 'Draft Email'}
           </span>
           <div className="flex gap-1.5">
             {isEditing ? (
@@ -814,15 +813,6 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
                 </button>
 
                 <button
-                  onClick={() => handleQuickAction('leave')}
-                  className="bg-surface border border-border hover:border-accent-500 rounded p-3 text-left hover:bg-accent-100/10 transition group"
-                >
-                  <Mail size={15} className="text-accent-500 mb-1 group-hover:scale-110 transition" />
-                  <div className="text-xs font-semibold text-ink">Draft leave letter</div>
-                  <div className="text-[10px] text-ink-muted mt-0.5">Write Casual Leave request</div>
-                </button>
-
-                <button
                   onClick={() => handleQuickAction('syllabus')}
                   className="bg-surface border border-border hover:border-accent-500 rounded p-3 text-left hover:bg-accent-100/10 transition group"
                 >
@@ -833,7 +823,7 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
 
                 <button
                   onClick={() => handleQuickAction('lesson')}
-                  className="bg-surface border border-border hover:border-accent-500 rounded p-3 text-left hover:bg-accent-100/10 transition group"
+                  className="col-span-2 bg-surface border border-border hover:border-accent-500 rounded p-3 text-left hover:bg-accent-100/10 transition group"
                 >
                   <FileText size={15} className="text-accent-500 mb-1 group-hover:scale-110 transition" />
                   <div className="text-xs font-semibold text-ink">Make lesson plan</div>
@@ -943,12 +933,6 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
               className="text-[10px] font-mono text-ink-muted hover:text-accent-500 bg-surface/60 border border-border px-2 py-1 rounded hover:border-accent-500 transition"
             >
               /schedule
-            </button>
-            <button
-              onClick={() => handleQuickAction('leave')}
-              className="text-[10px] font-mono text-ink-muted hover:text-accent-500 bg-surface/60 border border-border px-2 py-1 rounded hover:border-accent-500 transition"
-            >
-              /leave-draft
             </button>
             <button
               onClick={() => handleQuickAction('syllabus')}

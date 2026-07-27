@@ -141,15 +141,15 @@ export const api = {
           day: day,
           schedule: filtered
         };
-      } else if (msgLower.includes('leave') || msgLower.includes('draft')) {
+      } else if (msgLower.includes('draft') && !msgLower.includes('leave')) {
         toolCalls = [{ name: 'draft_email', status: 'success', result: 'Configured email draft helper.' }];
-        mockReply = "Here is a drafted leave request email for you:\n\n**Subject:** Application for Casual Leave - Dr. Rajesh Kumar\n\n**Body:**\nDear Head of Department,\n\nI am writing to formally request 1 day of Casual Leave for tomorrow, July 27, 2026, due to personal urgent work at home.\n\nI have arranged for Dr. Amit Sharma to handle my 9:00 AM class. He has kindly agreed to conduct a tutorial session in my place.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept.";
+        mockReply = "Here is a drafted reminder email for you:\n\n**Subject:** Urgent: Low Attendance Warning\n\n**Body:**\nDear Student,\n\nOur records show your attendance is currently below 75%. Please ensure you attend the remaining lectures to maintain exam eligibility.\n\nSincerely,\nFaculty Office";
         richData = {
           type: 'email_draft',
-          to_name: 'HOD',
-          purpose: 'Casual Leave request for tomorrow',
-          subject: 'Application for Casual Leave - Dr. Rajesh Kumar',
-          body: "Dear Head of Department,\n\nI am writing to formally request 1 day of Casual Leave for tomorrow, July 27, 2026, due to personal urgent work at home.\n\nI have arranged for Dr. Amit Sharma to handle my 9:00 AM Design & Analysis of Algorithms class for CSE-A. He has kindly agreed to conduct a tutorial session in my place.\n\nThank you for your consideration.\n\nSincerely,\nDr. Rajesh Kumar\nProfessor & Head, CSE Dept."
+          to_name: 'Student',
+          purpose: 'attendance reminder',
+          subject: 'Urgent: Low Attendance Warning',
+          body: "Dear Student,\n\nOur records show your attendance is currently below 75%. Please ensure you attend the remaining lectures to maintain exam eligibility.\n\nSincerely,\nFaculty Office"
         };
       } else if (msgLower.includes('syllabus') || msgLower.includes('daa') || msgLower.includes('topics') || msgLower.includes('compiler') || msgLower.includes('learning')) {
         let subject = 'Design & Analysis of Algorithms';
@@ -161,7 +161,7 @@ export const api = {
           subject = 'Machine Learning Lab';
         }
 
-        let units = [];
+        let units: any[] = [];
         const localData = localStorage.getItem(`mock_syllabus_${subject}`);
         if (localData) {
           units = JSON.parse(localData);
@@ -210,7 +210,7 @@ export const api = {
           ],
           assessment: 'Homework: Compute big-O runtime for 3 recursive algorithms (binary search, merge sort, fibonacci).'
         };
-      } else if (msgLower.includes('policy') || msgLower.includes('rule') || msgLower.includes('cl') || msgLower.includes('attendance')) {
+      } else if (msgLower.includes('policy') || msgLower.includes('rule') || msgLower.includes('cl') || msgLower.includes('leave') || msgLower.includes('attendance')) {
         toolCalls = [{ name: 'search_policies', status: 'success', result: 'Retrieved 2 policy chunks.' }];
         mockReply = "According to the **Student Attendance and Exam Policy**:\n- Students need a minimum of **75% attendance** to be eligible to write exams.\n- Condonation is permitted between **65% and 74%** for medical reasons with HOD approval.\n- Below **65%**, they are strictly detained.\n\nAccording to the **Faculty Leave Policy 2026**:\n- You are entitled to **12 days of Casual Leave (CL)** per calendar year.\n- A maximum of **3 days** can be taken consecutively with HOD approval 24 hours in advance.";
         richData = {
@@ -221,7 +221,7 @@ export const api = {
           ]
         };
       } else {
-        mockReply = "Hello! I am your Faculty Assistant. I can help you retrieve today's schedule, search institutional policies, draft emails/leave requests, look up syllabus details, or create lesson plans. How can I assist you today?";
+        mockReply = "Hello! I am your Faculty Assistant. I can help you retrieve today's schedule, search institutional policies, draft emails, look up syllabus details, or create lesson plans. How can I assist you today?";
       }
 
       // Simulate stream
@@ -467,7 +467,7 @@ export const api = {
       console.warn('Backend uploadPolicy failed, simulating local RAG ingestion.', error);
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = () => {
           try {
             resolve({
               status: 'success',

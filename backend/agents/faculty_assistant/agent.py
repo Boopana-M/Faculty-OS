@@ -123,17 +123,20 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session):
     elif any(k in msg_lower for k in ["draft", "email", "letter", "request", "write to"]):
         tool_calls.append({"name": "draft_email", "status": "running"})
         # Parse potential names/subjects
-        to_name = "HOD"
+        to_name = "Recipient"
         if "dean" in msg_lower:
             to_name = "Dean"
         elif "principal" in msg_lower:
             to_name = "Principal"
+        elif "hod" in msg_lower:
+            to_name = "HOD"
+        elif "student" in msg_lower:
+            to_name = "Student"
             
-        purpose = "leave request"
-        if "casual" in msg_lower or "cl" in msg_lower:
-            purpose = "Casual Leave request for tomorrow"
-        elif "marks" in msg_lower or "attendance" in msg_lower:
+        purpose = "general reminder"
+        if "marks" in msg_lower or "attendance" in msg_lower:
             purpose = "student reminder"
+            to_name = "Student"
             
         rich_data = {
             "type": "email_draft",
@@ -197,7 +200,7 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session):
     if rich_data and rich_data["type"] == "email_draft":
         # If it is a draft, let's extract the subject and body from the text response
         # or supply standard structured draft values.
-        subject = "Application for Casual Leave"
+        subject = "Draft Notification"
         body = text_response
         if "Subject:" in text_response:
             try:

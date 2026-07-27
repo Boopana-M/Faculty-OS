@@ -95,27 +95,20 @@ class LLMClient:
         if "schedule" in last_message or "today" in last_message:
             return "Based on your timetable database, you have the following classes today:\n\n1. **09:00 - 10:00**: Design & Analysis of Algorithms for **CSE-A** in **LH-201**\n2. **11:30 - 12:30**: Machine Learning for **CSE-B** in **LH-302**\n\nI have rendered today's schedule in your dashboard panel to the right."
         
-        elif "leave" in last_message or "draft a leave" in last_message:
-            return """Here is a drafted leave request email for you:
+        elif "draft" in last_message or "email" in last_message:
+            return """Here is a drafted reminder email for you:
 
 ```subject
-Application for Casual Leave - Dr. Rajesh Kumar
+Urgent: Low Attendance Warning
 ```
 
 ```body
-Dear Head of Department,
+Dear Student,
 
-I am writing to formally request 1 day of Casual Leave for tomorrow, July 27, 2026, due to personal urgent work at home. 
-
-I have arranged for Dr. Amit Sharma to handle my 9:00 AM Design & Analysis of Algorithms class for CSE-A. He has kindly agreed to conduct a tutorial session in my place.
-
-I will ensure that any pending syllabus topics are covered in extra classes next week. I will be reachable via email and mobile if anything urgent arises.
-
-Thank you for your consideration.
+Our records show your attendance is currently below 75%. Please ensure you attend the remaining lectures to maintain exam eligibility.
 
 Sincerely,
-Dr. Rajesh Kumar
-Professor & Head, CSE Dept.
+Faculty Office
 ```
 I've also rendered this below as a Draft Card so you can copy or edit it easily!"""
 
@@ -140,6 +133,6 @@ I've rendered this as a Lesson Plan Card below for you to review!"""
             return "According to the **Student Attendance and Exam Policy**:\n- Students need a minimum of **75% attendance** to be eligible to write exams.\n- Condonation is permitted between **65% and 74%** for medical reasons with HOD approval.\n- Below **65%**, they are strictly detained.\n\nAccording to the **Faculty Leave Policy 2026**:\n- You are entitled to **12 days of Casual Leave (CL)** per calendar year.\n- A maximum of **3 days** can be taken consecutively with HOD approval 24 hours in advance."
 
         else:
-            return "Hello! I am your Faculty Assistant. I can help you retrieve today's schedule, search institutional policies, draft emails/leave requests, look up syllabus details, or create lesson plans. How can I assist you today?"
+            return "Hello! I am your Faculty Assistant. I can help you retrieve today's schedule, search institutional policies, draft emails, look up syllabus details, or create lesson plans. How can I assist you today?"
 
 llm_client = LLMClient()
