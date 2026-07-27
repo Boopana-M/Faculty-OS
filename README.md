@@ -1,33 +1,51 @@
-# EduPilot - Multi-Agent Faculty Platform (MVP Phase 0 & 1)
+# Faculty OS — Multi-Agent Faculty Platform (6-Agent MVP)
 
-EduPilot is a specialized multi-agent operating system designed for academic faculty members to orchestrate schedules, manage syllabus data, track workflows, and retrieve institutional policies.
+Faculty OS is an integrated multi-agent platform designed for engineering college faculty members to automate daily administrative, academic, research, and wellbeing workflows. 
 
-## Project Structure
+## 60-Second Architecture Summary
 
-```text
-/backend
-  /agents             # Capability agents (Faculty Assistant, Workflow, Analytics)
-    /faculty_assistant# Phase 1: Daily-driver assistant, policy search, drafts
-  /core               # Shared codebase (DB models, JWT auth, seed scripts, LLM client)
-  /rag                # ChromaDB vector store ingestion and retrieval pipeline
-/frontend             # React + Vite + TypeScript + Tailwind CSS UI
-  /src
-    /components       # Common design system components (Card, Seal, Button, Badge)
-    /context          # AgentThemeProvider for real-time CSS variable skinning
-    /pages            # Login, Dashboard, FacultyAssistant, StyleGuide
-    /services         # api.ts (backend client + static mock flow)
+Faculty OS operates as a unified platform with **Faculty Assistant** acting as the orchestrator/front door. Depending on user intent or complex multi-step instructions, it delegates to any of the 5 other specialized agents:
+
+```mermaid
+graph TD
+    FA[Faculty Assistant - Indigo Accent]
+    AW[Academic Workflow - Emerald Accent]
+    AA[Analytics & Accreditation - Amber Accent]
+    RG[Research & Grants - Sky Accent]
+    EA[Exam & Assessment - Fuchsia Accent]
+    MW[Mentor & Wellbeing - Rose Accent]
+
+    FA -->|Orchestrates / Delegate| AW
+    FA -->|Orchestrates / Delegate| AA
+    FA -->|Orchestrates / Delegate| RG
+    FA -->|Orchestrates / Delegate| EA
+    FA -->|Orchestrates / Delegate| MW
 ```
 
-## Features Implemented (Phase 0 & Phase 1)
+- **1. Faculty Assistant (Indigo):** Personal daily assistant (schedules, lesson plans, RAG over policies/syllabus, email drafting).
+- **2. Academic Workflow (Emerald):** Tables/grids for marking student attendance, assignment columns, grading grids, and reminders.
+- **3. Analytics & Accreditation (Amber):** KPI cards, performance distribution, attendance trends, at-risk prediction lists, and NBA/NAAC PDF compile reports.
+- **4. Research & Grants (Sky):** Timeline lists of faculty publications, grant deadlines, funding matching, and co-author heuristics.
+- **5. Exam & Assessment Design (Fuchsia):** Bloom's taxonomy builders, CO coverage targets, question bank CRUD, paper generation, and rubric designers.
+- **6. Mentor & Wellbeing (Rose):** Qualitative mentee records, check-in logging, mood tags, timeline logs, and counseling escalation paths.
 
-1. **Robust Dark Theme Design System:** Adheres strictly to the user rule ("dont use light mode for ui") with vibrant indigo/emerald/amber accents, Fraunces serif display fonts, Inter body copy, and IBM Plex Mono data ledgers.
-2. **Dynamic Skinning:** Seamlessly switches colors/styles when switching between agents using React Context and CSS variables.
-3. **Internal Style Guide:** Accessible at `/dev/style-guide` to validate all tokens, buttons, cards, badges, inputs, and seal graphics.
-4. **JWT-based Authentication:** Secure logins using passwords hashed with bcrypt, returning signed JWT tokens.
-5. **Database Core & Seed:** SQLite configuration with a pre-seeded faculty member (`demo@faculty.edu` / `demo1234`), mock schedules, curriculum plans, and policy logs.
-6. **Policy RAG Pipeline:** Ingests unstructured policy documents into ChromaDB, embedding text via sentence-transformers, and returning cited references.
-7. **Streamed Faculty Chat:** PROGRESSIVE text stream of chat responses over Server-Sent Events (SSE) including execution traces of agent tools (`get_todays_schedule`, `search_policies`, `create_lesson_plan`, `draft_email`).
-8. **Rich Layout Cards:** Chat-rendered timetable cards, copy-pastable/editable email draft cards, and collapsible unit lesson structures.
+---
+
+## Technical Stack
+
+- **Frontend:** React + Vite + TypeScript, CSS Themes (no Tailwind light mode, dark only), Lucide Icons, Framer Motion
+- **Backend:** FastAPI (Python), SQLAlchemy ORM (SQLite / PostgreSQL), SSE (Server-Sent Events) streaming
+- **RAG & Vector DB:** ChromaDB (policy corpora, syllabus topics, past papers)
+
+---
+
+## Environment Variables
+
+Create a `backend/.env` file with:
+```bash
+DATABASE_URL=sqlite:///./edupilot.db
+ANTHROPIC_API_KEY=your_key_here (optional; system falls back to high-fidelity mock generator if key is missing)
+```
 
 ---
 
@@ -38,7 +56,7 @@ EduPilot is a specialized multi-agent operating system designed for academic fac
 Make sure you have Python 3.10+ installed.
 
 1. Navigate to `/backend`
-2. Create and activate virtual environment (already initialized at `.venv`):
+2. Activate the virtual environment:
    ```powershell
    .venv\Scripts\activate
    ```
@@ -46,24 +64,21 @@ Make sure you have Python 3.10+ installed.
    ```bash
    pip install -r requirements.txt
    ```
-4. Start FastAPI server using Uvicorn:
+4. Start the FastAPI server:
    ```bash
    python -m uvicorn main:app --reload --port 8000
    ```
-   *The DB is seeded automatically on server startup. The API will run on `http://localhost:8000`.*
+   *The SQLite database is seeded automatically on startup. The API will run on `http://localhost:8000`.*
 
 ### 2. Run the Frontend
 
 1. Navigate to `/frontend`
-2. Start the Vite development server:
+2. Install npm dependencies (if not done):
+   ```bash
+   npm install
+   ```
+3. Start Vite dev server:
    ```bash
    npm run dev
    ```
-   *The frontend runs on `http://localhost:5173`. Click the dev style guide link to preview components.*
-
----
-
-## Technical Notes & Fail-safes
-- **LLM API Fallback:** If `ANTHROPIC_API_KEY` is not provided in `backend/.env`, the system defaults to a high-fidelity local parser that mimics Claude 3.5 Sonnet outputs.
-- **RAG Fallback:** If ChromaDB or torch fails to initialize locally, the RAG engine switches to a keyword-matching fallback database, preventing system crashes.
-- **Frontend Server Offline Fallback:** If the backend FastAPI is offline, the React client automatically intercepts requests and provides mock streaming, allowing full UI demonstration.
+   *The frontend runs on `http://localhost:5173`. Click the dev style guide link to preview component tokens.*

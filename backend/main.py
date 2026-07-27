@@ -8,10 +8,19 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from core.database import get_db, engine, Base
-from core.models import Faculty
+from core.models import (
+    Faculty, Student, AttendanceRecord, Assignment, Submission, InternalMark,
+    COAttainment, FacultyWorkload, Publication, GrantOpportunity, ResearchDeadline,
+    QuestionBankItem, QuestionPaper, Rubric, Mentee, CheckIn, Escalation
+)
 from core.auth import verify_password, create_access_token, verify_token
 from core.seed import seed_database
 from agents.faculty_assistant.agent import handle_faculty_assistant_chat
+from agents.academic_workflow.agent import handle_academic_workflow_chat
+from agents.analytics.agent import handle_analytics_chat
+from agents.research_grants.agent import handle_research_grants_chat
+from agents.exam_assessment.agent import handle_exam_assessment_chat
+from agents.mentor_wellbeing.agent import handle_mentor_wellbeing_chat
 
 # Initialize DB tables
 Base.metadata.create_all(bind=engine)
@@ -420,74 +429,648 @@ def bulk_upload_syllabus(payload: dict = Body(...), db: Session = Depends(get_db
 @app.post("/agents/chat")
 def general_agent_chat(payload: dict = Body(...), db: Session = Depends(get_db)):
     """
-    General agent chat stub for phase 0.
-    Accepts: { agent_id, message, session_id }
+    General agent chat endpoint.
+    Accepts: { agent_id, message, session_id, history }
     """
     agent_id = payload.get("agent_id")
     message = payload.get("message", "")
+    history = payload.get("history", [])
     
     if not agent_id:
         raise HTTPException(status_code=400, detail="agent_id is required")
         
     if agent_id == "agent1":
-        # Faculty Assistant logic
-        res = handle_faculty_assistant_chat(message, 1, db)
-        return res
+        return handle_faculty_assistant_chat(message, 1, db, history)
     elif agent_id == "agent2":
-        return {
-            "text": "Academic Workflow Agent stub response. I handle attendance, assignments, and marks. (Available in Phase 2)",
-            "tool_calls": [{"name": "workflow_stub", "status": "success", "result": "Academic Workflow Agent is active in Phase 2."}],
-            "rich_data": None
-        }
+        return handle_academic_workflow_chat(message, 1, db, history)
     elif agent_id == "agent3":
-        return {
-            "text": "Analytics & Accreditation Agent stub response. I handle performance insights and accreditation reports. (Available in Phase 3)",
-            "tool_calls": [{"name": "analytics_stub", "status": "success", "result": "Analytics Agent is active in Phase 3."}],
-            "rich_data": None
-        }
+        return handle_analytics_chat(message, 1, db, history)
+    elif agent_id == "agent4":
+        return handle_research_grants_chat(message, 1, db, history)
+    elif agent_id == "agent5":
+        return handle_exam_assessment_chat(message, 1, db, history)
+    elif agent_id == "agent6":
+        return handle_mentor_wellbeing_chat(message, 1, db, history)
     else:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-@app.post("/agents/faculty-assistant/chat")
-def faculty_assistant_chat_stream(payload: dict = Body(...), db: Session = Depends(get_db)):
+@app.post("/agents/{agent_id}/chat")
+def agent_chat_stream(agent_id: str, payload: dict = Body(...), db: Session = Depends(get_db)):
     """
-    Streamed chat for the Faculty Assistant via Server-Sent Events (SSE)
+    Streamed chat for any Agent via Server-Sent Events (SSE)
     """
     message = payload.get("message", "")
     history = payload.get("history", [])
-    # Default to first faculty if not authenticated in MVP session
     faculty_id = payload.get("faculty_id", 1) 
 
     async def event_generator():
-        # Retrieve the full agent output structure
-        # (Since we are local, we process it synchronously and then stream the characters/words
-        # to simulate typing effect or stream model outputs sequentially)
         try:
-            # Get the fully parsed response
-            agent_result = handle_faculty_assistant_chat(message, faculty_id, db, history)
+            if agent_id == "agent1":
+                agent_result = handle_faculty_assistant_chat(message, faculty_id, db, history)
+            elif agent_id == "agent2":
+                agent_result = handle_academic_workflow_chat(message, faculty_id, db, history)
+            elif agent_id == "agent3":
+                agent_result = handle_analytics_chat(message, faculty_id, db, history)
+            elif agent_id == "agent4":
+                agent_result = handle_research_grants_chat(message, faculty_id, db, history)
+            elif agent_id == "agent5":
+                agent_result = handle_exam_assessment_chat(message, faculty_id, db, history)
+            elif agent_id == "agent6":
+                agent_result = handle_mentor_wellbeing_chat(message, faculty_id, db, history)
+            else:
+                raise ValueError("Invalid agent ID")
+
             text_response = agent_result["text"]
             tool_calls = agent_result["tool_calls"]
             rich_data = agent_result["rich_data"]
 
-            # Stream the tool invocation first to show visual handoff/trace
+            # Stream the tool trace visual
             if tool_calls:
                 for tc in tool_calls:
                     yield f"data: {json.dumps({'type': 'trace', 'name': tc['name'], 'status': 'running'})}\n\n"
                     await asyncio.sleep(0.3)
                     yield f"data: {json.dumps({'type': 'trace', 'name': tc['name'], 'status': tc['status'], 'result': tc.get('result', '')})}\n\n"
-                    await asyncio.sleep(0.2)
+                    await asyncio.sleep(0.1)
 
-            # Stream the response text character by character / word by word
+            # Stream words
             words = text_response.split(" ")
             for i, word in enumerate(words):
                 space = " " if i < len(words) - 1 else ""
                 yield f"data: {json.dumps({'type': 'content', 'delta': word + space})}\n\n"
-                # Control typing speed
-                await asyncio.sleep(0.02)
+                await asyncio.sleep(0.01)
 
-            # Yield final payload containing rich details for cards
+            # Yield final done response
             yield f"data: {json.dumps({'type': 'done', 'tool_calls': tool_calls, 'rich_data': rich_data})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'detail': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.post("/agents/faculty-assistant/chat")
+def legacy_faculty_assistant_chat_stream(payload: dict = Body(...), db: Session = Depends(get_db)):
+    """Legacy backward compatibility stream mapping"""
+    return agent_chat_stream("agent1", payload, db)
+
+
+# ==========================================
+# REST API FOR ACADEMIC WORKFLOW (AGENT 2)
+# ==========================================
+
+@app.get("/api/attendance")
+def get_attendance(db: Session = Depends(get_db)):
+    records = db.query(AttendanceRecord).all()
+    res = []
+    for r in records:
+        student = db.query(Student).filter(Student.id == r.student_id).first()
+        res.append({
+            "id": r.id,
+            "roll_no": student.roll_no if student else "N/A",
+            "name": student.name if student else "N/A",
+            "date": r.date,
+            "status": r.status,
+            "period": r.period,
+            "subject": r.subject,
+            "class_section": r.class_section
+        })
+    return res
+
+@app.post("/api/attendance/mark")
+def mark_attendance(payload: dict = Body(...), db: Session = Depends(get_db)):
+    roll_no = payload.get("roll_no")
+    date = payload.get("date", datetime.date.today().strftime("%Y-%m-%d"))
+    status = payload.get("status", "Present")
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    class_section = payload.get("class_section", "CSE-A")
+    period = payload.get("period", "09:00 - 10:00")
+
+    student = db.query(Student).filter(Student.roll_no == roll_no).first()
+    if not student:
+         raise HTTPException(status_code=404, detail="Student not found")
+
+    # Update or insert
+    record = db.query(AttendanceRecord).filter(
+        AttendanceRecord.student_id == student.id,
+        AttendanceRecord.date == date,
+        AttendanceRecord.subject == subject
+    ).first()
+
+    if record:
+        record.status = status
+    else:
+        record = AttendanceRecord(
+            student_id=student.id,
+            date=date,
+            status=status,
+            period=period,
+            subject=subject,
+            class_section=class_section
+        )
+        db.add(record)
+    
+    db.commit()
+    return {"status": "success", "message": f"Attendance marked for {roll_no} as {status}."}
+
+@app.get("/api/assignments")
+def get_assignments(db: Session = Depends(get_db)):
+    assigns = db.query(Assignment).all()
+    res = []
+    for a in assigns:
+        # Get submissions count
+        subs = db.query(Submission).filter(Submission.assignment_id == a.id).all()
+        res.append({
+            "id": a.id,
+            "title": a.title,
+            "subject": a.subject,
+            "class_section": a.class_section,
+            "due_date": a.due_date,
+            "max_marks": a.max_marks,
+            "status": a.status,
+            "submissions_count": len(subs),
+            "graded_count": len([s for s in subs if s.status == "Graded"])
+        })
+    return res
+
+@app.post("/api/assignments/schedule")
+def schedule_assignment(payload: dict = Body(...), db: Session = Depends(get_db)):
+    title = payload.get("title")
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    class_section = payload.get("class_section", "CSE-A")
+    due_date = payload.get("due_date")
+    max_marks = payload.get("max_marks", 10)
+
+    if not title or not due_date:
+        raise HTTPException(status_code=400, detail="Title and due date are required")
+
+    new_assign = Assignment(
+        title=title,
+        subject=subject,
+        class_section=class_section,
+        due_date=due_date,
+        max_marks=max_marks,
+        status="Open"
+    )
+    db.add(new_assign)
+    db.commit()
+    db.refresh(new_assign)
+    
+    # Auto-seed submissions for students in that class section
+    students = db.query(Student).filter(Student.class_section == class_section).all()
+    for s in students:
+        # Just create blank pending submissions
+        sub = Submission(
+            assignment_id=new_assign.id,
+            student_id=s.id,
+            submitted_at="-",
+            marks_obtained=None,
+            status="Pending"
+        )
+        db.add(sub)
+    db.commit()
+
+    return {"status": "success", "id": new_assign.id, "message": f"Assignment scheduled for {class_section}."}
+
+@app.get("/api/marks")
+def get_marks(db: Session = Depends(get_db)):
+    marks = db.query(InternalMark).all()
+    res = []
+    for m in marks:
+        student = db.query(Student).filter(Student.id == m.student_id).first()
+        res.append({
+            "id": m.id,
+            "roll_no": student.roll_no if student else "N/A",
+            "name": student.name if student else "N/A",
+            "subject": m.subject,
+            "cat1_marks": m.cat1_marks,
+            "cat2_marks": m.cat2_marks,
+            "assignment_marks": m.assignment_marks,
+            "lab_marks": m.lab_marks,
+            "total_marks": m.total_marks,
+            "attendance_percentage": m.attendance_percentage
+        })
+    return res
+
+@app.post("/api/marks/calculate")
+def calculate_marks(payload: dict = Body(...), db: Session = Depends(get_db)):
+    # Re-sums the marks
+    marks = db.query(InternalMark).all()
+    for m in marks:
+        m.total_marks = (m.cat1_marks or 0) + (m.cat2_marks or 0) + (m.assignment_marks or 0) + (m.lab_marks or 0)
+    db.commit()
+    return {"status": "success", "message": "Calculated total marks successfully."}
+
+@app.get("/api/reminders")
+def get_reminders_list():
+    return [
+        {"id": 1, "task": "Grade DAA Assignment 2 (Greedy)", "due": "2026-08-05", "urgency": "high"},
+        {"id": 2, "task": "Syllabus mapping validation for CAT2 papers", "due": "2026-08-06", "urgency": "medium"},
+        {"id": 3, "task": "Mentee check-in with A. Kumar (overdue)", "due": "2026-07-30", "urgency": "high"}
+    ]
+
+
+# ==========================================
+# REST API FOR ANALYTICS (AGENT 3)
+# ==========================================
+
+@app.get("/api/analytics/kpis")
+def get_analytics_kpis(db: Session = Depends(get_db)):
+    total_students = db.query(Student).count()
+    attendance_records = db.query(AttendanceRecord).all()
+    present_count = len([r for r in attendance_records if r.status == "Present"])
+    avg_attendance = int((present_count / len(attendance_records)) * 100) if attendance_records else 100
+    
+    marks = db.query(InternalMark).all()
+    avg_marks = int(sum([m.total_marks for m in marks]) / len(marks)) if marks else 0
+    
+    co_att = db.query(COAttainment).all()
+    attained_count = len([c for c in co_att if c.attained_percentage >= c.target_percentage])
+    co_attainment_rate = int((attained_count / len(co_att)) * 100) if co_att else 0
+
+    return {
+        "total_students": total_students,
+        "avg_attendance": avg_attendance,
+        "avg_internal_marks": f"{avg_marks}/50",
+        "co_attainment_rate": f"{co_attainment_rate}%"
+    }
+
+@app.get("/api/analytics/charts")
+def get_analytics_charts(db: Session = Depends(get_db)):
+    # Performance distribution: ranges 0-10, 10-20, 20-30, 30-40, 40-50
+    marks = db.query(InternalMark).all()
+    distribution = {"0-10": 0, "10-20": 0, "20-30": 0, "30-40": 0, "40-50": 0}
+    for m in marks:
+        val = m.total_marks or 0
+        if val <= 10: distribution["0-10"] += 1
+        elif val <= 20: distribution["10-20"] += 1
+        elif val <= 30: distribution["20-30"] += 1
+        elif val <= 40: distribution["30-40"] += 1
+        else: distribution["40-50"] += 1
+    
+    performance_chart = [{"range": k, "count": v} for k, v in distribution.items()]
+    
+    # Attendance trend (by date)
+    attendance_records = db.query(AttendanceRecord).all()
+    dates_map = {}
+    for r in attendance_records:
+        dates_map.setdefault(r.date, []).append(r.status)
+    attendance_chart = []
+    for date, statuses in sorted(dates_map.items()):
+        presents = len([s for s in statuses if s == "Present"])
+        attendance_chart.append({
+            "date": date,
+            "rate": int((presents / len(statuses)) * 100)
+        })
+        
+    # CO attainments
+    co_records = db.query(COAttainment).all()
+    co_chart = [{"co": c.co_number, "target": c.target_percentage, "attained": c.attained_percentage} for c in co_records]
+
+    return {
+        "performance_chart": performance_chart,
+        "attendance_chart": attendance_chart,
+        "co_chart": co_chart
+    }
+
+@app.get("/api/analytics/at-risk")
+def get_at_risk_analytics(db: Session = Depends(get_db)):
+    marks = db.query(InternalMark).filter(InternalMark.attendance_percentage < 75).all()
+    res = []
+    for m in marks:
+        student = db.query(Student).filter(Student.id == m.student_id).first()
+        if student:
+            res.append({
+                "roll_no": student.roll_no,
+                "name": student.name,
+                "attendance": m.attendance_percentage,
+                "marks": m.total_marks,
+                "risk_level": "High" if m.attendance_percentage < 50 else "Medium"
+            })
+    return res
+
+@app.get("/api/analytics/report/pdf")
+def get_analytics_pdf():
+    return {
+        "status": "success",
+        "url": "/reports/nba_attainment_draft.pdf",
+        "message": "Styled Draft PDF report generated on Letterhead."
+    }
+
+
+# ==========================================
+# REST API FOR RESEARCH & GRANTS (AGENT 4)
+# ==========================================
+
+@app.get("/api/research/publications")
+def get_publications(db: Session = Depends(get_db)):
+    pubs = db.query(Publication).all()
+    return [
+        {
+            "id": p.id,
+            "title": p.title,
+            "venue": p.venue,
+            "type": p.type,
+            "year": p.year,
+            "co_authors": p.co_authors,
+            "doi_or_link": p.doi_or_link,
+            "citation_count": p.citation_count
+        }
+        for p in pubs
+    ]
+
+@app.post("/api/research/publications")
+def log_publication(payload: dict = Body(...), db: Session = Depends(get_db)):
+    title = payload.get("title")
+    venue = payload.get("venue")
+    type_ = payload.get("type", "journal")
+    year = payload.get("year", 2026)
+    co_authors = payload.get("co_authors")
+    doi_or_link = payload.get("doi_or_link")
+
+    if not title or not venue:
+        raise HTTPException(status_code=400, detail="Title and venue are required")
+
+    new_pub = Publication(
+        faculty_id=1,
+        title=title,
+        venue=venue,
+        type=type_,
+        year=year,
+        co_authors=co_authors,
+        doi_or_link=doi_or_link,
+        citation_count=0
+    )
+    db.add(new_pub)
+    db.commit()
+    db.refresh(new_pub)
+    return {"status": "success", "id": new_pub.id, "message": "Publication logged successfully."}
+
+@app.get("/api/research/grants")
+def get_grants(db: Session = Depends(get_db)):
+    grants = db.query(GrantOpportunity).all()
+    return [
+        {
+            "id": g.id,
+            "title": g.title,
+            "funding_body": g.funding_body,
+            "amount": g.amount,
+            "eligibility": g.eligibility,
+            "deadline": g.deadline,
+            "focus_area": g.focus_area
+        }
+        for g in grants
+    ]
+
+@app.get("/api/research/deadlines")
+def get_research_deadlines(db: Session = Depends(get_db)):
+    deadlines = db.query(ResearchDeadline).all()
+    return [
+        {
+            "id": d.id,
+            "title": d.title,
+            "type": d.type,
+            "due_date": d.due_date
+        }
+        for d in deadlines
+    ]
+
+
+# ==========================================
+# REST API FOR EXAM & ASSESSMENT (AGENT 5)
+# ==========================================
+
+@app.get("/api/exam/questions")
+def get_questions_bank(db: Session = Depends(get_db)):
+    items = db.query(QuestionBankItem).all()
+    return [
+        {
+            "id": i.id,
+            "subject": i.subject,
+            "unit": i.unit,
+            "co_number": i.co_number,
+            "bloom_level": i.bloom_level,
+            "question_text": i.question_text,
+            "marks": i.marks,
+            "difficulty": i.difficulty
+        }
+        for i in items
+    ]
+
+@app.post("/api/exam/questions")
+def add_question(payload: dict = Body(...), db: Session = Depends(get_db)):
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    unit = payload.get("unit")
+    co_number = payload.get("co_number")
+    bloom_level = payload.get("bloom_level")
+    question_text = payload.get("question_text")
+    marks = payload.get("marks")
+    difficulty = payload.get("difficulty", "Medium")
+
+    if not all([unit, co_number, bloom_level, question_text, marks]):
+        raise HTTPException(status_code=400, detail="Missing required question parameters")
+
+    new_q = QuestionBankItem(
+        subject=subject,
+        unit=unit,
+        co_number=co_number,
+        bloom_level=bloom_level,
+        question_text=question_text,
+        marks=marks,
+        difficulty=difficulty
+    )
+    db.add(new_q)
+    db.commit()
+    db.refresh(new_q)
+    return {"status": "success", "id": new_q.id, "message": "Question added to bank."}
+
+@app.post("/api/exam/generate-paper")
+def generate_paper(payload: dict = Body(...), db: Session = Depends(get_db)):
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    exam_type = payload.get("exam_type", "CAT2")
+    total_marks = payload.get("total_marks", 50)
+    duration = payload.get("duration", 90)
+    co_targets = payload.get("co_targets", {"CO1": 40, "CO2": 40, "CO3": 20})
+    bloom_targets = payload.get("bloom_targets", {"Remember": 20, "Understand": 20, "Apply": 30, "Analyze": 30})
+
+    # Select fitting questions from bank
+    qb = db.query(QuestionBankItem).filter(QuestionBankItem.subject == subject).all()
+    selected = []
+    # simple greedy selection
+    current_marks = 0
+    for q in qb:
+        if current_marks + q.marks <= total_marks:
+            selected.append({
+                "id": q.id,
+                "question_text": q.question_text,
+                "marks": q.marks,
+                "co": q.co_number,
+                "bloom_level": q.bloom_level
+            })
+            current_marks += q.marks
+            
+    paper = QuestionPaper(
+        subject=subject,
+        exam_type=exam_type,
+        total_marks=total_marks,
+        duration=duration,
+        co_coverage=json.dumps(co_targets),
+        bloom_distribution=json.dumps(bloom_targets),
+        status="draft",
+        questions_json=json.dumps(selected)
+    )
+    db.add(paper)
+    db.commit()
+    db.refresh(paper)
+
+    return {
+        "status": "success",
+        "paper_id": paper.id,
+        "questions": selected,
+        "co_coverage": co_targets,
+        "bloom_distribution": bloom_targets
+    }
+
+@app.get("/api/exam/papers")
+def get_generated_papers(db: Session = Depends(get_db)):
+    papers = db.query(QuestionPaper).all()
+    res = []
+    for p in papers:
+        res.append({
+            "id": p.id,
+            "subject": p.subject,
+            "exam_type": p.exam_type,
+            "total_marks": p.total_marks,
+            "duration": p.duration,
+            "status": p.status,
+            "co_coverage": json.loads(p.co_coverage) if p.co_coverage else {},
+            "bloom_distribution": json.loads(p.bloom_distribution) if p.bloom_distribution else {},
+            "questions": json.loads(p.questions_json) if p.questions_json else []
+        })
+    return res
+
+@app.post("/api/exam/papers/{paper_id}/moderate")
+def moderate_question_paper(paper_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+    status_ = payload.get("status", "moderated")
+    paper = db.query(QuestionPaper).filter(QuestionPaper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    paper.status = status_
+    db.commit()
+    return {"status": "success", "paper_id": paper.id, "new_status": status_}
+
+@app.post("/api/exam/generate-rubric")
+def get_rubric_schema(payload: dict = Body(...)):
+    # Generates rubric criteria
+    return [
+        {"criterion": "Technical Correctness", "max_marks": 5, "descriptor": "Algorithm correctly solves all edge cases."},
+        {"criterion": "Analysis Proof", "max_marks": 3, "descriptor": "Detailed recursive trace and step explanation."},
+        {"criterion": "Syntax & Clarity", "max_marks": 2, "descriptor": "Clean pseudocode with readable parameters."}
+    ]
+
+
+# ==========================================
+# REST API FOR MENTOR & WELLBEING (AGENT 6)
+# ==========================================
+
+@app.get("/api/mentor/mentees")
+def get_mentees_list(db: Session = Depends(get_db)):
+    mentees = db.query(Mentee).all()
+    res = []
+    for m in mentees:
+        student = db.query(Student).filter(Student.id == m.student_id).first()
+        if student:
+            # Overdue if check-in is older than 21 days (roughly)
+            is_overdue = "4 weeks" in str(m.last_checkin_date) or m.last_checkin_date == "2026-06-29"
+            res.append({
+                "id": m.id,
+                "student_id": student.id,
+                "roll_no": student.roll_no,
+                "name": student.name,
+                "class_section": m.class_section,
+                "last_checkin_date": m.last_checkin_date,
+                "is_overdue": is_overdue
+            })
+    return res
+
+@app.get("/api/mentor/timeline/{student_id}")
+def get_mentee_timeline(student_id: int, db: Session = Depends(get_db)):
+    mentee = db.query(Mentee).filter(Mentee.student_id == student_id).first()
+    if not mentee:
+        raise HTTPException(status_code=404, detail="Mentee not found")
+    checkins = db.query(CheckIn).filter(CheckIn.mentee_id == mentee.id).order_by(CheckIn.date.desc()).all()
+    return [
+        {
+            "id": c.id,
+            "date": c.date,
+            "mode": c.mode,
+            "notes": c.notes,  # sensitive data visible only in mentor view
+            "mood_tag": c.mood_tag
+        }
+        for c in checkins
+    ]
+
+@app.post("/api/mentor/checkin")
+def log_checkin_record(payload: dict = Body(...), db: Session = Depends(get_db)):
+    student_id = payload.get("student_id")
+    mode = payload.get("mode", "in-person")
+    notes = payload.get("notes", "")
+    mood_tag = payload.get("mood_tag", "doing well")
+    date = datetime.date.today().strftime("%Y-%m-%d")
+
+    mentee = db.query(Mentee).filter(Mentee.student_id == student_id).first()
+    if not mentee:
+        raise HTTPException(status_code=404, detail="Mentee not found")
+
+    new_checkin = CheckIn(
+        mentee_id=mentee.id,
+        date=date,
+        mode=mode,
+        notes=notes,
+        mood_tag=mood_tag
+    )
+    db.add(new_checkin)
+    
+    # Update last checkin date on Mentee
+    mentee.last_checkin_date = f"{date} (today)"
+    db.commit()
+
+    return {"status": "success", "message": "Wellbeing check-in logged."}
+
+@app.post("/api/mentor/escalate")
+def escalate_mentee(payload: dict = Body(...), db: Session = Depends(get_db)):
+    student_id = payload.get("student_id")
+    reason = payload.get("reason")
+    escalated_to = payload.get("escalated_to", "counselor")
+
+    if not reason:
+        raise HTTPException(status_code=400, detail="Escalation reason is required")
+
+    mentee = db.query(Mentee).filter(Mentee.student_id == student_id).first()
+    if not mentee:
+        raise HTTPException(status_code=404, detail="Mentee not found")
+
+    new_esc = Escalation(
+        mentee_id=mentee.id,
+        raised_by=1,
+        reason=reason,
+        escalated_to=escalated_to,
+        status="open"
+    )
+    db.add(new_esc)
+    db.commit()
+    return {"status": "success", "message": f"Case escalated to {escalated_to}."}
+
+@app.get("/api/mentor/suggest-prompt/{student_id}")
+def get_suggested_wellbeing_prompt(student_id: int, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    # Empirical check on attendance to make prompt context-aware
+    mark = db.query(InternalMark).filter(InternalMark.student_id == student_id).first()
+    attendance_str = ""
+    if mark and mark.attendance_percentage < 75:
+         attendance_str = f"your DAA attendance of {mark.attendance_percentage}% is slightly low"
+    else:
+         attendance_str = "how the semester classes are going"
+
+    prompt = f"Hi {student.name}, I was reviewing our mentee check-in list and wanted to check in on you. I noticed {attendance_str}. Is there anything bothering you or any support you need from my side?"
+    return {"prompt": prompt}

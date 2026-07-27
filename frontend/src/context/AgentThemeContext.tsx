@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type AgentId = 'agent1' | 'agent2' | 'agent3';
+export type AgentId = 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6';
 
 interface AgentThemeContextType {
   activeAgent: AgentId;
@@ -16,11 +16,16 @@ export const AgentThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => {
     // Sync class on the document body/root element
     const root = document.documentElement;
-    root.classList.remove('theme-agent1', 'theme-agent2', 'theme-agent3');
+    root.classList.remove(
+      'theme-agent1',
+      'theme-agent2',
+      'theme-agent3',
+      'theme-agent4',
+      'theme-agent5',
+      'theme-agent6'
+    );
     
-    if (activeAgent === 'agent1') root.classList.add('theme-agent1');
-    else if (activeAgent === 'agent2') root.classList.add('theme-agent2');
-    else if (activeAgent === 'agent3') root.classList.add('theme-agent3');
+    root.classList.add(`theme-${activeAgent}`);
   }, [activeAgent]);
 
   const getAgentThemeName = () => {
@@ -31,6 +36,12 @@ export const AgentThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return 'Academic Workflow';
       case 'agent3':
         return 'Analytics & Accreditation';
+      case 'agent4':
+        return 'Research & Grants';
+      case 'agent5':
+        return 'Exam & Assessment Design';
+      case 'agent6':
+        return 'Mentor & Wellbeing';
       default:
         return 'Faculty Assistant';
     }

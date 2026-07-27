@@ -133,7 +133,7 @@ export const Badge: React.FC<BadgeProps> = ({
 // SEAL COMPONENT (SIGNATURE ELEMENT)
 // ==========================================
 interface SealProps {
-  agentId: 'agent1' | 'agent2' | 'agent3';
+  agentId: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6';
   icon: LucideIcon;
   size?: 'sm' | 'md' | 'lg';
   grayscale?: boolean;
@@ -172,6 +172,15 @@ export const Seal: React.FC<SealProps> = ({
         break;
       case 'agent3':
         colorClass = 'bg-agent3-500 text-white';
+        break;
+      case 'agent4':
+        colorClass = 'bg-agent4-500 text-white';
+        break;
+      case 'agent5':
+        colorClass = 'bg-agent5-500 text-white';
+        break;
+      case 'agent6':
+        colorClass = 'bg-agent6-500 text-white';
         break;
     }
   }

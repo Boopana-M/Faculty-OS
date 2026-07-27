@@ -1,8 +1,13 @@
 import React from 'react';
 import { useAgentTheme, type AgentId } from '../context/AgentThemeContext';
 import { FacultyAssistant } from './FacultyAssistant';
+import { AcademicWorkflow } from './AcademicWorkflow';
+import { Analytics } from './Analytics';
+import { ResearchGrants } from './ResearchGrants';
+import { ExamAssessment } from './ExamAssessment';
+import { MentorWellbeing } from './MentorWellbeing';
 import { Seal, Button, Badge } from '../components/Common';
-import { Bot, BookOpen, Award, LogOut, User as UserIcon } from 'lucide-react';
+import { Bot, BookOpen, Award, GraduationCap, ClipboardSignature, Heart, LogOut, User as UserIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface DashboardProps {
@@ -31,9 +36,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
     {
       id: 'agent3',
       name: 'Analytics & Accreditation',
-      desc: ' NBA/NAAC, performance reports',
+      desc: 'NBA/NAAC, performance reports',
       icon: Award,
       colorClass: 'agent3'
+    },
+    {
+      id: 'agent4',
+      name: 'Research & Grants',
+      desc: 'Publications, grants tracker, co-authors',
+      icon: GraduationCap,
+      colorClass: 'agent4'
+    },
+    {
+      id: 'agent5',
+      name: 'Exam & Assessment Design',
+      desc: 'Question papers, rubrics, moderation',
+      icon: ClipboardSignature,
+      colorClass: 'agent5'
+    },
+    {
+      id: 'agent6',
+      name: 'Mentor & Wellbeing',
+      desc: 'Mentees check-ins, mood & escalations',
+      icon: Heart,
+      colorClass: 'agent6'
     }
   ];
 
@@ -168,29 +194,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
               )}
 
               {activeAgent === 'agent2' && (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-lg mx-auto">
-                  <Seal agentId="agent2" icon={BookOpen} size="lg" className="mb-4 bg-emerald-600/90" />
-                  <h1 className="font-display text-4xl font-semibold tracking-tight text-ink mb-2">
-                    Academic Workflow Agent
-                  </h1>
-                  <Badge variant="accent">Phase 2 Module</Badge>
-                  <p className="text-sm text-ink-muted mt-3 leading-relaxed">
-                    This agent is designed for grid/table interfaces (attendance records, assignment marks tracker, reminders feed). Once activated, you can mark students present, calculate internal assessments, and delegate reminders in emerald themes.
-                  </p>
-                </div>
+                <AcademicWorkflow user={user} />
               )}
 
               {activeAgent === 'agent3' && (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-lg mx-auto">
-                  <Seal agentId="agent3" icon={Award} size="lg" className="mb-4 bg-amber-600/90" />
-                  <h1 className="font-display text-4xl font-semibold tracking-tight text-ink mb-2">
-                    Analytics & Accreditation Agent
-                  </h1>
-                  <Badge variant="accent">Phase 3 Module</Badge>
-                  <p className="text-sm text-ink-muted mt-3 leading-relaxed">
-                    This agent generates KPI charts, performance insights, and accreditation paperwork (NBA/NAAC reports). Features student risk forecasting dashboards and downloadable letters in amber themes.
-                  </p>
-                </div>
+                <Analytics user={user} />
+              )}
+
+              {activeAgent === 'agent4' && (
+                <ResearchGrants user={user} />
+              )}
+
+              {activeAgent === 'agent5' && (
+                <ExamAssessment user={user} />
+              )}
+
+              {activeAgent === 'agent6' && (
+                <MentorWellbeing user={user} />
               )}
             </motion.div>
           </AnimatePresence>

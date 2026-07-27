@@ -27,6 +27,21 @@
   --agent3-100: #78350F;
   --agent3-700: #D97706;
 
+  /* Agent 4 - Research & Grants (sky) */
+  --agent4-500: #38BDF8;
+  --agent4-100: #082F49;
+  --agent4-700: #0369A1;
+
+  /* Agent 5 - Exam & Assessment (fuchsia) */
+  --agent5-500: #D946EF;
+  --agent5-100: #4A044E;
+  --agent5-700: #A21CAF;
+
+  /* Agent 6 - Mentor & Wellbeing (rose) */
+  --agent6-500: #FB7185;
+  --agent6-100: #4C0519;
+  --agent6-700: #BE123C;
+
   /* Status (used across all agents) */
   --status-good:  #10B981;
   --status-warn:  #F59E0B;
@@ -58,6 +73,24 @@
   --accent-500: var(--agent3-500);
   --accent-100: var(--agent3-100);
   --accent-700: var(--agent3-700);
+}
+
+.theme-agent4 {
+  --accent-500: var(--agent4-500);
+  --accent-100: var(--agent4-100);
+  --accent-700: var(--agent4-700);
+}
+
+.theme-agent5 {
+  --accent-500: var(--agent5-500);
+  --accent-100: var(--agent5-100);
+  --accent-700: var(--agent5-700);
+}
+
+.theme-agent6 {
+  --accent-500: var(--agent6-500);
+  --accent-100: var(--agent6-100);
+  --accent-700: var(--agent6-700);
 }
 
 body {

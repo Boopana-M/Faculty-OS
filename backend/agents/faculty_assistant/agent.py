@@ -304,14 +304,38 @@ def handle_faculty_assistant_chat(message: str, faculty_id: int, db: Session, hi
         }
         tool_calls[-1].update({"status": "success", "result": "Configured lesson plan generator."})
 
-    # Interservice Delegation Stubs
-    elif "delegate" in msg_lower or "workflow" in msg_lower or "analytics" in msg_lower:
-        if "workflow" in msg_lower:
-            tool_calls.append({"name": "delegate_to_academic_workflow", "status": "success", "result": "Redirected query to Academic Workflow Agent."})
-            rich_data = {"type": "delegation", "agent": "Academic Workflow"}
-        else:
-            tool_calls.append({"name": "delegate_to_analytics", "status": "success", "result": "Redirected query to Analytics & Accreditation Agent."})
-            rich_data = {"type": "delegation", "agent": "Analytics & Accreditation"}
+    # Interservice Delegation & Collaboration
+    elif "mentee" in msg_lower and ("attendance" in msg_lower or "overdue" in msg_lower or "dropping" in msg_lower):
+        tool_calls.append({"name": "delegate_to_mentor_wellbeing", "status": "success", "result": "Fetched overdue list: A. Kumar (last check-in 4 weeks ago), C. Dinesh (last check-in 2 weeks ago)"})
+        tool_calls.append({"name": "delegate_to_academic_workflow", "status": "success", "result": "Checked attendance trends: A. Kumar (40% - dipping), C. Dinesh (80% - stable)"})
+        tool_calls.append({"name": "suggest_checkin_prompt", "status": "success", "result": "Generated conversation starter for A. Kumar"})
+        
+        rich_data = {
+            "type": "collaboration_result",
+            "flagged_mentees": [
+                {
+                    "name": "A. Kumar",
+                    "roll_no": "24CC001",
+                    "reason": "Overdue for check-in (4 weeks ago) and attendance has dropped to 40% (dipping trend).",
+                    "prompt": "Hi Kumar, I noticed you missed a couple of DAA classes recently. I wanted to reach out and check if everything is okay with you. Let me know when you'd like to catch up."
+                }
+            ]
+        }
+    elif "workflow" in msg_lower or "attendance" in msg_lower or "assignment" in msg_lower:
+        tool_calls.append({"name": "delegate_to_academic_workflow", "status": "success", "result": "Redirected query to Academic Workflow Agent."})
+        rich_data = {"type": "delegation", "agent": "Academic Workflow", "agent_id": "agent2"}
+    elif "analytics" in msg_lower or "nba" in msg_lower or "accreditation" in msg_lower:
+        tool_calls.append({"name": "delegate_to_analytics", "status": "success", "result": "Redirected query to Analytics & Accreditation Agent."})
+        rich_data = {"type": "delegation", "agent": "Analytics & Accreditation", "agent_id": "agent3"}
+    elif "research" in msg_lower or "grant" in msg_lower or "publication" in msg_lower:
+        tool_calls.append({"name": "delegate_to_research_grants", "status": "success", "result": "Redirected query to Research & Grants Agent."})
+        rich_data = {"type": "delegation", "agent": "Research & Grants", "agent_id": "agent4"}
+    elif "exam" in msg_lower or "paper" in msg_lower or "assessment" in msg_lower:
+        tool_calls.append({"name": "delegate_to_exam_assessment", "status": "success", "result": "Redirected query to Exam & Assessment Design Agent."})
+        rich_data = {"type": "delegation", "agent": "Exam & Assessment Design", "agent_id": "agent5"}
+    elif "mentor" in msg_lower or "wellbeing" in msg_lower:
+        tool_calls.append({"name": "delegate_to_mentor_wellbeing", "status": "success", "result": "Redirected query to Mentor & Wellbeing Agent."})
+        rich_data = {"type": "delegation", "agent": "Mentor & Wellbeing", "agent_id": "agent6"}
 
     # 2. GENERATE COMPREHENSIVE SYSTEM PROMPT & CALL LLM
     

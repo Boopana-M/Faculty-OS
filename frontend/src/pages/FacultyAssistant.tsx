@@ -424,6 +424,7 @@ export const FacultyAssistant: React.FC<FacultyAssistantProps> = ({ user }) => {
 
     // Call the streaming API
     api.streamChat(
+      'agent1',
       text,
       messages,
       // onChunk

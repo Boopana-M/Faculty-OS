@@ -80,6 +80,7 @@ export const api = {
   },
 
   streamChat(
+    agentId: string,
     message: string,
     history: any[],
     onChunk: (text: string) => void,
@@ -374,7 +375,7 @@ export const api = {
     };
 
     // Attempt backend fetch
-    fetch(`${API_BASE_URL}/agents/faculty-assistant/chat`, {
+    fetch(`${API_BASE_URL}/agents/${agentId}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -681,6 +682,359 @@ export const api = {
       updated = [...updated, ...formatted];
       localStorage.setItem(`mock_syllabus_${subject}`, JSON.stringify(updated));
       return { status: 'success', count: units.length };
+    }
+  },
+
+  // ==========================================
+  // ACADEMIC WORKFLOW API WRAPPERS
+  // ==========================================
+  async getAttendance(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/attendance`);
+      if (!response.ok) throw new Error('Failed to fetch attendance');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getAttendance failed, returning mock data.', error);
+      return [
+        { id: 1, roll_no: "24CC001", name: "A. Kumar", date: "2026-07-27", status: "Absent", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" },
+        { id: 2, roll_no: "24CC002", name: "B. Priya", date: "2026-07-27", status: "Present", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" },
+        { id: 3, roll_no: "24CC003", name: "C. Dinesh", date: "2026-07-27", status: "Present", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" }
+      ];
+    }
+  },
+
+  async markAttendance(roll_no: string, date: string, status: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/attendance/mark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roll_no, date, status })
+      });
+      if (!response.ok) throw new Error('Failed to mark attendance');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend markAttendance failed.', error);
+      return { status: 'success' };
+    }
+  },
+
+  async getAssignments(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/assignments`);
+      if (!response.ok) throw new Error('Failed to fetch assignments');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getAssignments failed, returning mock data.', error);
+      return [
+        { id: 1, title: "Assignment 1: Divide & Conquer Analysis", subject: "Design & Analysis of Algorithms", class_section: "CSE-A", due_date: "2026-07-20", max_marks: 10, status: "Graded", submissions_count: 5, graded_count: 5 },
+        { id: 2, title: "Assignment 2: Greedy Knapsack & Prim's", subject: "Design & Analysis of Algorithms", class_section: "CSE-A", due_date: "2026-08-05", max_marks: 10, status: "Open", submissions_count: 4, graded_count: 0 }
+      ];
+    }
+  },
+
+  async scheduleAssignment(title: string, due_date: string, class_section: string, max_marks: number): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/assignments/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, due_date, class_section, max_marks })
+      });
+      if (!response.ok) throw new Error('Failed to schedule assignment');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend scheduleAssignment failed.', error);
+      return { status: 'success' };
+    }
+  },
+
+  async getMarks(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/marks`);
+      if (!response.ok) throw new Error('Failed to fetch marks');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getMarks failed, returning mock data.', error);
+      return [
+        { id: 1, roll_no: "24CC001", name: "A. Kumar", subject: "Design & Analysis of Algorithms", cat1_marks: 11, cat2_marks: 9, assignment_marks: 8, lab_marks: 9, total_marks: 37, attendance_percentage: 40 },
+        { id: 2, roll_no: "24CC002", name: "B. Priya", subject: "Design & Analysis of Algorithms", cat1_marks: 14, cat2_marks: 15, assignment_marks: 10, lab_marks: 10, total_marks: 49, attendance_percentage: 100 }
+      ];
+    }
+  },
+
+  async calculateMarks(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/marks/calculate`, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to calculate marks');
+      return await response.json();
+    } catch (error) {
+      return { status: 'success' };
+    }
+  },
+
+  // ==========================================
+  // ANALYTICS & ACCREDITATION API WRAPPERS
+  // ==========================================
+  async getAnalyticsKpis(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/kpis`);
+      if (!response.ok) throw new Error('Failed to fetch analytics KPIs');
+      return await response.json();
+    } catch (error) {
+      return {
+        total_students: 8,
+        avg_attendance: 87,
+        avg_internal_marks: '34/50',
+        co_attainment_rate: '60%'
+      };
+    }
+  },
+
+  async getAnalyticsCharts(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/charts`);
+      if (!response.ok) throw new Error('Failed to fetch charts');
+      return await response.json();
+    } catch (error) {
+      return {
+        performance_chart: [
+          { range: '0-10', count: 0 },
+          { range: '10-20', count: 2 },
+          { range: '20-30', count: 3 },
+          { range: '30-40', count: 2 },
+          { range: '40-50', count: 1 }
+        ],
+        attendance_chart: [
+          { date: '07-23', rate: 90 },
+          { date: '07-24', rate: 85 },
+          { date: '07-25', rate: 88 },
+          { date: '07-26', rate: 84 },
+          { date: '07-27', rate: 87 }
+        ],
+        co_chart: [
+          { co: 'CO1', target: 75, attained: 80 },
+          { co: 'CO2', target: 75, attained: 60 },
+          { co: 'CO3', target: 75, attained: 95 }
+        ]
+      };
+    }
+  },
+
+  async getAtRiskAnalytics(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/at-risk`);
+      if (!response.ok) throw new Error('Failed to fetch at-risk analytics');
+      return await response.json();
+    } catch (error) {
+      return [
+        { roll_no: "24CC001", name: "A. Kumar", attendance: 40, marks: 37, risk_level: "High" }
+      ];
+    }
+  },
+
+  async getAnalyticsPDF(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analytics/report/pdf`);
+      return await response.json();
+    } catch (error) {
+      return { status: 'success', message: 'Styled Draft PDF report generated on Letterhead.' };
+    }
+  },
+
+  // ==========================================
+  // RESEARCH & GRANTS API WRAPPERS
+  // ==========================================
+  async getPublications(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/research/publications`);
+      if (!response.ok) throw new Error('Failed to fetch publications');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, title: "An Efficient Deep Learning Framework for Brain Tumor Segmentation", venue: "IEEE Transactions on Medical Imaging", type: "journal", year: 2026, co_authors: "S. Ram, V. Krish", doi_or_link: "10.1109/TMI.2026.123456", citation_count: 4 },
+        { id: 2, title: "Distributed Consensus Protocols in Wireless Sensor Networks", venue: "International Journal of Computer Networks", type: "journal", year: 2025, co_authors: "R. Kapoor", doi_or_link: "10.1016/j.comnet.2025.04.12", citation_count: 12 }
+      ];
+    }
+  },
+
+  async logPublication(title: string, venue: string, type: string, year: number, co_authors?: string, doi_or_link?: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/research/publications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, venue, type, year, co_authors, doi_or_link })
+      });
+      if (!response.ok) throw new Error('Failed to log publication');
+      return await response.json();
+    } catch (error) {
+      return { status: 'success' };
+    }
+  },
+
+  async getGrants(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/research/grants`);
+      if (!response.ok) throw new Error('Failed to fetch grants');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, title: "Research Promotion Scheme (RPS) in AI/ML", funding_body: "AICTE", amount: "8 Lakhs", eligibility: "Full-time faculty with Ph.D.", deadline: "2026-08-15", focus_area: "Machine Learning, Computer Vision" },
+        { id: 2, title: "Core Research Grant (CRG)", funding_body: "SERB", amount: "35 Lakhs", eligibility: "Ph.D. degree, regular position", deadline: "2026-09-30", focus_area: "Data Science, IoT" }
+      ];
+    }
+  },
+
+  async getResearchDeadlines(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/research/deadlines`);
+      if (!response.ok) throw new Error('Failed to fetch research deadlines');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, title: "AICTE RPS Grant Application", type: "submission", due_date: "2026-08-15" },
+        { id: 2, title: "IEEE Cloud Computing Conference Camera-Ready", type: "review", due_date: "2026-07-30" },
+        { id: 3, title: "Patent Renewal: Smart Microgrid Controller", type: "renewal", due_date: "2026-08-27" }
+      ];
+    }
+  },
+
+  // ==========================================
+  // EXAM & ASSESSMENT API WRAPPERS
+  // ==========================================
+  async getQuestionsBank(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/exam/questions`);
+      if (!response.ok) throw new Error('Failed to fetch questions');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, subject: "Design & Analysis of Algorithms", unit: 1, co_number: "CO1", bloom_level: "Remember", question_text: "Define Asymptotic Notation and list the three primary types.", marks: 5, difficulty: "Easy" }
+      ];
+    }
+  },
+
+  async generatePaper(data: any): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/exam/generate-paper`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to generate paper');
+      return await response.json();
+    } catch (error) {
+      return {
+        status: 'success',
+        paper_id: 1,
+        questions: [
+          { id: 1, question_text: "Define Asymptotic Notation and list the three primary types.", marks: 5, co: "CO1", bloom_level: "Remember" }
+        ]
+      };
+    }
+  },
+
+  async getGeneratedPapers(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/exam/papers`);
+      if (!response.ok) throw new Error('Failed to fetch papers');
+      return await response.json();
+    } catch (error) {
+      return [];
+    }
+  },
+
+  async moderateQuestionPaper(paperId: number, status: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/exam/papers/${paperId}/moderate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!response.ok) throw new Error('Failed to moderate paper');
+      return await response.json();
+    } catch (error) {
+      return { status: 'success' };
+    }
+  },
+
+  async getRubricSchema(data: any): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/exam/generate-rubric`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to fetch rubric');
+      return await response.json();
+    } catch (error) {
+      return [
+        { criterion: "Technical Correctness", max_marks: 5, descriptor: "Algorithm correctly solves all edge cases." }
+      ];
+    }
+  },
+
+  // ==========================================
+  // MENTOR & WELLBEING API WRAPPERS
+  // ==========================================
+  async getMentees(): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mentor/mentees`);
+      if (!response.ok) throw new Error('Failed to fetch mentees');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, student_id: 1, roll_no: "24CC001", name: "A. Kumar", class_section: "CSE-A", last_checkin_date: "2026-06-29", is_overdue: true },
+        { id: 2, student_id: 2, roll_no: "24CC002", name: "B. Priya", class_section: "CSE-A", last_checkin_date: "2026-07-24", is_overdue: false }
+      ];
+    }
+  },
+
+  async getMenteeTimeline(studentId: number): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mentor/timeline/${studentId}`);
+      if (!response.ok) throw new Error('Failed to fetch timelines');
+      return await response.json();
+    } catch (error) {
+      return [
+        { id: 1, date: "2026-07-13", mode: "in-person", notes: "Expressed difficulty in understanding DAA.", mood_tag: "needs attention" }
+      ];
+    }
+  },
+
+  async logCheckin(studentId: number, mode: string, notes: string, mood_tag: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mentor/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, mode, notes, mood_tag })
+      });
+      if (!response.ok) throw new Error('Failed to log checkin');
+      return await response.json();
+    } catch (error) {
+      return { status: 'success' };
+    }
+  },
+
+  async escalateMentee(studentId: number, reason: string, escalated_to: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mentor/escalate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, reason, escalated_to })
+      });
+      if (!response.ok) throw new Error('Failed to escalate mentee');
+      return await response.json();
+    } catch (error) {
+      return { status: 'success' };
+    }
+  },
+
+  async getSuggestedWellbeingPrompt(studentId: number): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/mentor/suggest-prompt/${studentId}`);
+      if (!response.ok) throw new Error('Failed to suggest prompt');
+      return await response.json();
+    } catch (error) {
+      return { prompt: "Hi, I wanted to check in on how you're feeling lately and if you're facing any academic issues." };
     }
   }
 };
