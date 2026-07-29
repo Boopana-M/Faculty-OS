@@ -11,3 +11,4 @@ chromadb
 sentence-transformers
 requests
 numpy
+pypdf

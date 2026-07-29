@@ -12,17 +12,19 @@ def handle_analytics_chat(message: str, faculty_id: int, db: Session, history: l
     if "at risk" in msg_lower or "risk" in msg_lower or "weak" in msg_lower:
         tool_calls.append({"name": "predict_at_risk_students", "status": "running"})
         try:
-            # Simple rule-based prediction: attendance < 75% or total_marks < 40% of class average
-            at_risk = db.query(InternalMark).filter(InternalMark.attendance_percentage < 75).all()
             results = []
-            for r in at_risk:
-                student = db.query(Student).filter(Student.id == r.student_id).first()
-                if student:
+            for student in db.query(Student).all():
+                records = db.query(AttendanceRecord).filter(AttendanceRecord.student_id == student.id).all()
+                if records:
+                    attendance = round(100 * sum(record.status == "Present" for record in records) / len(records))
+                    mark = db.query(InternalMark).filter(InternalMark.student_id == student.id).first()
+                    if attendance >= 75:
+                        continue
                     results.append({
                         "name": student.name,
                         "roll_no": student.roll_no,
-                        "attendance": r.attendance_percentage,
-                        "marks": r.total_marks,
+                        "attendance": attendance,
+                        "marks": mark.total_marks if mark else None,
                         "reason": "Attendance below 75% threshold"
                     })
             

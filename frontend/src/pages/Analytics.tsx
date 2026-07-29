@@ -36,6 +36,10 @@ export const Analytics: React.FC<AnalyticsProps> = ({ user }) => {
     ]
   });
   const [atRisk, setAtRisk] = useState<any[]>([]);
+  const [department, setDepartment] = useState('CCE');
+  const [departments, setDepartments] = useState<string[]>(['CCE', 'CSE']);
+  const [classSection, setClassSection] = useState('CCE-A');
+  const [classSections, setClassSections] = useState<string[]>(['CCE-A', 'CSE-A', 'CSE-B']);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
 
@@ -47,12 +51,18 @@ export const Analytics: React.FC<AnalyticsProps> = ({ user }) => {
 
   const loadData = async () => {
     try {
-      const kpiData = await api.getAnalyticsKpis();
-      const chartData = await api.getAnalyticsCharts();
-      const riskData = await api.getAtRiskAnalytics();
+      const [kpiData, chartData, riskData, sections, availableDepartments] = await Promise.all([
+        api.getAnalyticsKpis(department, classSection),
+        api.getAnalyticsCharts(department, classSection),
+        api.getAtRiskAnalytics(department, classSection),
+        api.getClassSections(department),
+        api.getDepartments(),
+      ]);
       setKpis(kpiData);
       setCharts(chartData);
       setAtRisk(riskData);
+      setClassSections(sections);
+      setDepartments(availableDepartments);
     } catch (e) {
       console.error(e);
     }
@@ -60,7 +70,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ user }) => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [department, classSection]);
 
   const handleDownloadPDF = async () => {
     setIsReportLoading(true);
@@ -128,6 +138,12 @@ export const Analytics: React.FC<AnalyticsProps> = ({ user }) => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <select value={department} onChange={event => { const selectedDepartment = event.target.value; setDepartment(selectedDepartment); setClassSection(selectedDepartment === 'CCE' ? 'CCE-A' : 'CSE-A'); }} className="bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs font-mono focus:border-amber-500 outline-none">
+            {departments.map(item => <option key={item}>{item}</option>)}
+          </select>
+          <select value={classSection} onChange={event => setClassSection(event.target.value)} className="bg-surface border border-border text-ink rounded-radius-sm py-2 px-3 text-xs font-mono focus:border-amber-500 outline-none">
+            {classSections.map(section => <option key={section}>{section}</option>)}
+          </select>
           <Button 
             onClick={handleDownloadPDF}
             className="bg-amber-500 hover:bg-amber-700 text-black text-xs flex items-center gap-1.5 font-mono py-2"

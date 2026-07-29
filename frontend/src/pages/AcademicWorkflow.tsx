@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, CheckSquare, Layers, Send, Sparkles, User, AlertCircle, ChevronRight, Play, MessageSquare, Plus, Save } from 'lucide-react';
+import { BookOpen, Calendar, CheckSquare, Layers, Send, Sparkles, User, AlertCircle, ChevronRight, Play, MessageSquare, Plus, Save, Upload } from 'lucide-react';
 import { Card, Button, Input, Badge, Seal } from '../components/Common';
 import { api, type ChatMessage, type User as UserType } from '../services/api';
 
@@ -27,21 +27,29 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
   const [newAssignTitle, setNewAssignTitle] = useState('');
   const [newAssignDate, setNewAssignDate] = useState('');
   const [newAssignClass, setNewAssignClass] = useState('CSE-A');
+  const [attendanceDepartment, setAttendanceDepartment] = useState('CCE');
+  const [attendanceClass, setAttendanceClass] = useState('CCE-A');
+  const [departments, setDepartments] = useState<string[]>(['CCE', 'CSE']);
+  const [classSections, setClassSections] = useState<string[]>(['CCE-A', 'CSE-A', 'CSE-B']);
+  const [attendanceSubject, setAttendanceSubject] = useState('Attendance Register');
+  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rosterFile, setRosterFile] = useState<File | null>(null);
+  const [rosterMessage, setRosterMessage] = useState<string | null>(null);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [newStudent, setNewStudent] = useState({ roll_no: '', name: '', register_no: '' });
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const attData = await api.getAttendance();
-      const assData = await api.getAssignments();
-      const markData = await api.getMarks();
-      // fetch reminders
-      const remData = await fetch('http://localhost:8000/api/reminders').then(r => r.json()).catch(() => [
-        {id: 1, task: "Grade DAA Assignment 2 (Greedy)", due: "2026-08-05", urgency: "high"},
-        {id: 2, task: "Syllabus mapping validation for CAT2 papers", "due": "2026-08-06", "urgency": "medium"},
-        {id: 3, task: "Mentee check-in with A. Kumar (overdue)", "due": "2026-07-30", "urgency": "high"}
-      ]);
+      const attData = await api.getAttendanceRoster(attendanceDepartment, attendanceClass, attendanceSubject, attendanceDate);
+      const [sections, availableDepartments] = await Promise.all([api.getClassSections(attendanceDepartment), api.getDepartments()]);
+      const assData = await api.getAssignments(attendanceDepartment, attendanceClass);
+      const markData = await api.getMarks(attendanceDepartment, attendanceClass);
+      const remData = await api.getReminders(attendanceDepartment, attendanceClass);
       
       setAttendance(attData);
+      setClassSections(sections);
+      setDepartments(availableDepartments);
       setAssignments(assData);
       setMarks(markData);
       setReminders(remData);
@@ -54,12 +62,19 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [attendanceDepartment, attendanceClass, attendanceSubject, attendanceDate]);
+
+  const handleDepartmentChange = async (department: string) => {
+    setAttendanceDepartment(department);
+    const sections = await api.getClassSections(department);
+    setClassSections(sections);
+    setAttendanceClass(sections[0] || '');
+  };
 
   const handleToggleAttendance = async (roll_no: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Present' ? 'Absent' : 'Present';
     try {
-      await api.markAttendance(roll_no, "2026-07-27", newStatus);
+      await api.markAttendance(roll_no, attendanceDate, newStatus, attendanceSubject, attendanceClass);
       // update state
       setAttendance(prev => prev.map(a => a.roll_no === roll_no ? { ...a, status: newStatus } : a));
     } catch (e) {
@@ -67,17 +82,71 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
     }
   };
 
+  const handleBulkAttendance = async (status: 'Present' | 'Absent') => {
+    try {
+      await api.markAttendanceBulk(attendanceDepartment, attendanceClass, attendanceSubject, attendanceDate, status);
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      setRosterMessage('Unable to mark the roster. Please try again.');
+    }
+  };
+
+  const handleRosterImport = async () => {
+    if (!rosterFile) return;
+    try {
+      const result = await api.importAttendanceRoster(rosterFile, attendanceDepartment, attendanceClass);
+      setRosterMessage(`${result.imported} students imported into ${result.department} / ${result.class_section}.`);
+      await loadData();
+    } catch (error: any) {
+      setRosterMessage(error.message || 'Could not import the roster.');
+    }
+  };
+
+  const handleAddStudent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await api.addStudent({ ...newStudent, department: attendanceDepartment, class_section: attendanceClass });
+      setNewStudent({ roll_no: '', name: '', register_no: '' });
+      setIsAddStudentOpen(false);
+      setRosterMessage(`Student added to ${attendanceDepartment} / ${attendanceClass}.`);
+      await loadData();
+    } catch (error: any) {
+      setRosterMessage(error.message || 'Could not add student.');
+    }
+  };
+
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAssignTitle || !newAssignDate) return;
     try {
-      await api.scheduleAssignment(newAssignTitle, newAssignDate, newAssignClass, 10);
+      await api.scheduleAssignment(newAssignTitle, newAssignDate, attendanceClass, 10, attendanceDepartment);
       setNewAssignTitle('');
       setNewAssignDate('');
-      const assData = await api.getAssignments();
+      const assData = await api.getAssignments(attendanceDepartment, attendanceClass);
       setAssignments(assData);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const updateMarkValue = (studentId: number, field: 'cat1_marks' | 'cat2_marks' | 'assignment_marks' | 'lab_marks', value: string) => {
+    const numericValue = value === '' ? null : Number(value);
+    setMarks(current => current.map(row => row.student_id === studentId ? { ...row, [field]: numericValue } : row));
+  };
+
+  const saveMarks = async (row: any) => {
+    try {
+      await api.saveStudentMarks(row.student_id, {
+        cat1_marks: row.cat1_marks,
+        cat2_marks: row.cat2_marks,
+        assignment_marks: row.assignment_marks,
+        lab_marks: row.lab_marks,
+        subject: attendanceSubject,
+      });
+      await loadData();
+    } catch (error: any) {
+      setRosterMessage(error.message || 'Could not save marks.');
     }
   };
 
@@ -143,8 +212,9 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
 
   // Attendance summary metrics
   const totalStudents = attendance.length;
-  const presentCount = attendance.filter(a => a.status === 'Present').length;
-  const attendanceRate = totalStudents > 0 ? Math.round((presentCount / totalStudents) * 100) : 100;
+  const markedStudents = attendance.filter(a => a.status !== 'Unmarked');
+  const presentCount = markedStudents.filter(a => a.status === 'Present').length;
+  const attendanceRate = markedStudents.length > 0 ? Math.round((presentCount / markedStudents.length) * 100) : 0;
 
   return (
     <div className="h-full flex flex-col relative bg-paper text-ink overflow-hidden font-ui">
@@ -159,7 +229,7 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded border border-emerald-500/20 text-emerald-400">
-          <span className="text-xs font-mono font-semibold uppercase">ACTIVE: CSE-A (DAA)</span>
+          <span className="text-xs font-mono font-semibold uppercase">ACTIVE: {attendanceClass}</span>
         </div>
       </div>
 
@@ -186,12 +256,56 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
         {/* Tab 1: Attendance Grid */}
         {activeTab === 'attendance' && (
           <div className="space-y-6">
+            <Card className="p-4">
+              <div className="flex flex-col xl:flex-row xl:items-end gap-3">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Department</label>
+                    <select value={attendanceDepartment} onChange={e => handleDepartmentChange(e.target.value)} className="bg-surface border border-border text-ink rounded-radius-sm py-2.5 px-3 w-full text-xs focus:border-emerald-500 outline-none">
+                      {departments.map(department => <option key={department}>{department}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Class</label>
+                    <select value={attendanceClass} onChange={e => setAttendanceClass(e.target.value)} className="bg-surface border border-border text-ink rounded-radius-sm py-2.5 px-3 w-full text-xs focus:border-emerald-500 outline-none">
+                      {classSections.map(section => <option key={section}>{section}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Subject</label>
+                    <Input value={attendanceSubject} onChange={e => setAttendanceSubject(e.target.value)} className="text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Class Date</label>
+                    <Input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} className="text-xs" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="primary" onClick={() => setIsAddStudentOpen(value => !value)} className="bg-emerald-500 hover:bg-emerald-700 text-black"><Plus size={13} className="mr-1" /> Add student</Button>
+                  <Button size="sm" variant="secondary" onClick={() => handleBulkAttendance('Present')} className="text-emerald-400">Mark all present</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleBulkAttendance('Absent')}>Mark all absent</Button>
+                </div>
+              </div>
+              {isAddStudentOpen && (
+                <form onSubmit={handleAddStudent} className="mt-3 pt-3 border-t border-border/60 grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+                  <div><label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Roll no.</label><Input required value={newStudent.roll_no} onChange={e => setNewStudent({ ...newStudent, roll_no: e.target.value })} className="text-xs font-mono" /></div>
+                  <div><label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Student name</label><Input required value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} className="text-xs" /></div>
+                  <div><label className="text-[10px] font-mono text-ink-muted uppercase block mb-1">Register no. (optional)</label><Input value={newStudent.register_no} onChange={e => setNewStudent({ ...newStudent, register_no: e.target.value })} className="text-xs font-mono" /></div>
+                  <Button type="submit" size="sm" className="bg-emerald-500 hover:bg-emerald-700 text-black">Save student</Button>
+                </form>
+              )}
+              <div className="mt-3 pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center gap-2">
+                <label className="flex-1 text-[10px] font-mono text-ink-muted flex items-center gap-2 cursor-pointer"><Upload size={13} className="text-emerald-400" /><span>{rosterFile ? rosterFile.name : 'Select department first, then import Excel, Word, or PDF roster'}</span><input type="file" accept=".xlsx,.xls,.csv,.docx,.doc,.pdf" className="hidden" onChange={e => setRosterFile(e.target.files?.[0] || null)} /></label>
+                <Button size="sm" variant="outline" disabled={!rosterFile} onClick={handleRosterImport}>Import roster</Button>
+                {rosterMessage && <span className="text-[10px] text-emerald-400 font-mono">{rosterMessage}</span>}
+              </div>
+            </Card>
             {/* KPI Summary Block */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="flex items-center justify-between">
                 <div>
                   <div className="text-[10px] font-mono text-ink-muted uppercase">Today's Class</div>
-                  <div className="font-display text-3xl font-bold text-ink mt-1">CSE-A</div>
+                  <div className="font-display text-3xl font-bold text-ink mt-1">{attendanceClass}</div>
                 </div>
                 <Badge variant="accent">09:00 - 10:00</Badge>
               </Card>
@@ -226,13 +340,19 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {attendance.map((row) => (
+                    {isLoading && (
+                      <tr><td colSpan={5} className="py-8 text-center text-ink-muted font-mono">Loading class name list…</td></tr>
+                    )}
+                    {!isLoading && attendance.length === 0 && (
+                      <tr><td colSpan={5} className="py-8 text-center text-ink-muted">No students in {attendanceDepartment} / {attendanceClass} yet. Add a student or import the class name list above.</td></tr>
+                    )}
+                    {!isLoading && attendance.map((row) => (
                       <tr key={row.id} className="border-b border-border/40 hover:bg-surface/20 transition">
                         <td className="py-3 font-mono font-medium text-emerald-400">{row.roll_no}</td>
                         <td className="py-3 font-semibold">{row.name}</td>
                         <td className="py-3 text-ink-muted font-mono">{row.date}</td>
                         <td className="py-3 text-center">
-                          <Badge variant={row.status === 'Present' ? 'success' : 'danger'}>
+                          <Badge variant={row.status === 'Present' ? 'success' : row.status === 'Absent' ? 'danger' : 'neutral'}>
                             {row.status}
                           </Badge>
                         </td>
@@ -243,7 +363,7 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
                             className="text-[10px] py-1 px-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                             onClick={() => handleToggleAttendance(row.roll_no, row.status)}
                           >
-                            Toggle
+                            {row.status === 'Unmarked' ? 'Present' : 'Toggle'}
                           </Button>
                         </td>
                       </tr>
@@ -334,18 +454,21 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
                       <th className="py-3 px-4 font-mono text-center">ASSG (10)</th>
                       <th className="py-3 px-4 font-mono text-center">LAB (10)</th>
                       <th className="py-3 px-4 font-mono text-center bg-emerald-500/10 text-emerald-400">TOTAL (50)</th>
+                      <th className="py-3 px-4 text-right">ACTION</th>
                     </tr>
                   </thead>
                   <tbody>
                     {marks.map((row) => (
-                      <tr key={row.id} className="border-b border-border/40 hover:bg-surface/20 transition">
+                      <tr key={row.student_id} className="border-b border-border/40 hover:bg-surface/20 transition">
                         <td className="py-3 px-4 font-mono text-ink-muted">{row.roll_no}</td>
                         <td className="py-3 px-4 font-bold">{row.name}</td>
-                        <td className="py-3 px-4 text-center font-mono">{row.cat1_marks}</td>
-                        <td className="py-3 px-4 text-center font-mono">{row.cat2_marks}</td>
-                        <td className="py-3 px-4 text-center font-mono">{row.assignment_marks}</td>
-                        <td className="py-3 px-4 text-center font-mono">{row.lab_marks}</td>
-                        <td className="py-3 px-4 text-center font-mono font-bold bg-emerald-500/5 text-emerald-400">{row.total_marks}</td>
+                        {(['cat1_marks', 'cat2_marks', 'assignment_marks', 'lab_marks'] as const).map(field => (
+                          <td key={field} className="py-2 px-2 text-center">
+                            <input type="number" min="0" max={field === 'assignment_marks' || field === 'lab_marks' ? 10 : 15} value={row[field] ?? ''} onChange={event => updateMarkValue(row.student_id, field, event.target.value)} className="w-14 rounded border border-border bg-paper px-2 py-1.5 text-center font-mono text-xs outline-none focus:border-emerald-500" aria-label={`${field} marks for ${row.name}`} />
+                          </td>
+                        ))}
+                        <td className="py-3 px-4 text-center font-mono font-bold bg-emerald-500/5 text-emerald-400">{[row.cat1_marks, row.cat2_marks, row.assignment_marks, row.lab_marks].every(value => value == null) ? '—' : [row.cat1_marks, row.cat2_marks, row.assignment_marks, row.lab_marks].reduce((total, value) => total + (value || 0), 0)}</td>
+                        <td className="py-3 px-4 text-right"><Button size="sm" variant="outline" onClick={() => saveMarks(row)} className="text-[10px] py-1 px-2 border-emerald-500/30 text-emerald-400"><Save size={12} className="mr-1" />Save</Button></td>
                       </tr>
                     ))}
                   </tbody>

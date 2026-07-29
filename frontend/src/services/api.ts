@@ -703,12 +703,63 @@ export const api = {
     }
   },
 
-  async markAttendance(roll_no: string, date: string, status: string): Promise<any> {
+  async getAttendanceRoster(department: string, classSection: string, subject: string, date: string): Promise<any[]> {
+    const params = new URLSearchParams({ department, class_section: classSection, subject, date });
+    const response = await fetch(`${API_BASE_URL}/api/attendance/roster?${params}`);
+    if (!response.ok) throw new Error('Failed to fetch attendance roster');
+    return response.json();
+  },
+
+  async getDepartments(): Promise<string[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/departments`);
+      if (!response.ok) throw new Error('Failed to fetch departments');
+      return response.json();
+    } catch (error) {
+      return ['CCE', 'CSE'];
+    }
+  },
+
+  async getClassSections(department?: string): Promise<string[]> {
+    try {
+      const query = department ? `?department=${encodeURIComponent(department)}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/classes${query}`);
+      if (!response.ok) throw new Error('Failed to fetch classes');
+      return response.json();
+    } catch (error) {
+      return ['CCE-A', 'CSE-A', 'CSE-B'];
+    }
+  },
+
+  async addStudent(data: { roll_no: string; name: string; register_no?: string; department: string; class_section: string }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || 'Failed to add student');
+    }
+    return response.json();
+  },
+
+  async importAttendanceRoster(file: File, department: string, classSection: string): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('department', department);
+    formData.append('class_section', classSection);
+    const response = await fetch(`${API_BASE_URL}/api/attendance/roster/import`, { method: 'POST', body: formData });
+    if (!response.ok) throw new Error((await response.json()).detail || 'Failed to import roster');
+    return response.json();
+  },
+
+  async markAttendance(roll_no: string, date: string, status: string, subject = 'Attendance Register', class_section = 'CCE-A'): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/attendance/mark`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roll_no, date, status })
+        body: JSON.stringify({ roll_no, date, status, subject, class_section })
       });
       if (!response.ok) throw new Error('Failed to mark attendance');
       return await response.json();
@@ -718,9 +769,22 @@ export const api = {
     }
   },
 
-  async getAssignments(): Promise<any[]> {
+  async markAttendanceBulk(department: string, class_section: string, subject: string, date: string, status: 'Present' | 'Absent'): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/attendance/mark-bulk`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ department, class_section, subject, date, status }),
+    });
+    if (!response.ok) throw new Error('Failed to bulk mark attendance');
+    return response.json();
+  },
+
+  async getAssignments(department?: string, classSection?: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/assignments`);
+      const params = new URLSearchParams();
+      if (department) params.set('department', department);
+      if (classSection) params.set('class_section', classSection);
+      const query = params.size ? `?${params}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/assignments${query}`);
       if (!response.ok) throw new Error('Failed to fetch assignments');
       return await response.json();
     } catch (error) {
@@ -732,12 +796,12 @@ export const api = {
     }
   },
 
-  async scheduleAssignment(title: string, due_date: string, class_section: string, max_marks: number): Promise<any> {
+  async scheduleAssignment(title: string, due_date: string, class_section: string, max_marks: number, department?: string): Promise<any> {
     try {
       const response = await fetch(`${API_BASE_URL}/api/assignments/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, due_date, class_section, max_marks })
+        body: JSON.stringify({ title, due_date, class_section, max_marks, department })
       });
       if (!response.ok) throw new Error('Failed to schedule assignment');
       return await response.json();
@@ -747,9 +811,12 @@ export const api = {
     }
   },
 
-  async getMarks(): Promise<any[]> {
+  async getMarks(department?: string, classSection?: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/marks`);
+      const params = new URLSearchParams();
+      if (department) params.set('department', department);
+      if (classSection) params.set('class_section', classSection);
+      const response = await fetch(`${API_BASE_URL}/api/marks?${params}`);
       if (!response.ok) throw new Error('Failed to fetch marks');
       return await response.json();
     } catch (error) {
@@ -759,6 +826,19 @@ export const api = {
         { id: 2, roll_no: "24CC002", name: "B. Priya", subject: "Design & Analysis of Algorithms", cat1_marks: 14, cat2_marks: 15, assignment_marks: 10, lab_marks: 10, total_marks: 49, attendance_percentage: 100 }
       ];
     }
+  },
+
+  async saveStudentMarks(studentId: number, marks: { cat1_marks: number | null; cat2_marks: number | null; assignment_marks: number | null; lab_marks: number | null; subject?: string }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/marks/${studentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(marks),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || 'Failed to save marks');
+    }
+    return response.json();
   },
 
   async calculateMarks(): Promise<any> {
@@ -771,12 +851,26 @@ export const api = {
     }
   },
 
+  async getReminders(department?: string, classSection?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (department) params.set('department', department);
+    if (classSection) params.set('class_section', classSection);
+    const query = params.size ? `?${params}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/reminders${query}`);
+    if (!response.ok) throw new Error('Failed to fetch reminders');
+    return response.json();
+  },
+
   // ==========================================
   // ANALYTICS & ACCREDITATION API WRAPPERS
   // ==========================================
-  async getAnalyticsKpis(): Promise<any> {
+  async getAnalyticsKpis(department?: string, classSection?: string): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/kpis`);
+      const params = new URLSearchParams();
+      if (department) params.set('department', department);
+      if (classSection) params.set('class_section', classSection);
+      const query = params.size ? `?${params}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/analytics/kpis${query}`);
       if (!response.ok) throw new Error('Failed to fetch analytics KPIs');
       return await response.json();
     } catch (error) {
@@ -789,9 +883,13 @@ export const api = {
     }
   },
 
-  async getAnalyticsCharts(): Promise<any> {
+  async getAnalyticsCharts(department?: string, classSection?: string): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/charts`);
+      const params = new URLSearchParams();
+      if (department) params.set('department', department);
+      if (classSection) params.set('class_section', classSection);
+      const query = params.size ? `?${params}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/analytics/charts${query}`);
       if (!response.ok) throw new Error('Failed to fetch charts');
       return await response.json();
     } catch (error) {
@@ -819,9 +917,13 @@ export const api = {
     }
   },
 
-  async getAtRiskAnalytics(): Promise<any[]> {
+  async getAtRiskAnalytics(department?: string, classSection?: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analytics/at-risk`);
+      const params = new URLSearchParams();
+      if (department) params.set('department', department);
+      if (classSection) params.set('class_section', classSection);
+      const query = params.size ? `?${params}` : '';
+      const response = await fetch(`${API_BASE_URL}/api/analytics/at-risk${query}`);
       if (!response.ok) throw new Error('Failed to fetch at-risk analytics');
       return await response.json();
     } catch (error) {

@@ -9,7 +9,36 @@ from .models import (
 from .database import engine, Base
 from .auth import get_password_hash
 from rag.rag_pipeline import rag_pipeline
+from .roster_import import read_name_list
 import datetime
+from pathlib import Path
+
+
+def seed_uploaded_name_list(db: Session, faculty_id: int):
+    """Load the project-level name list when it is available, without requiring Excel."""
+    workbook = Path(__file__).resolve().parents[2] / "NAME LIST .xlsx"
+    if not workbook.exists():
+        return
+    try:
+        rows = read_name_list(workbook)
+        for row in rows:
+            student = db.query(Student).filter(Student.roll_no == row["roll_no"]).first()
+            if student:
+                student.name = row["name"]
+                student.student_id = row["student_id"] or student.student_id
+                student.department = "CCE"
+                student.class_section = "CCE-A"
+                student.mentor_faculty_id = student.mentor_faculty_id or faculty_id
+            else:
+                db.add(Student(
+                    roll_no=row["roll_no"], student_id=row["student_id"] or None, name=row["name"],
+                    department="CCE", class_section="CCE-A", mentor_faculty_id=faculty_id,
+                    email=f"{row['roll_no'].lower()}@student.edu",
+                ))
+        db.commit()
+        print(f"Attendance roster ready: {len(rows)} students imported from {workbook.name}.")
+    except Exception as exc:
+        print(f"Could not seed the uploaded name list: {exc}")
 
 def seed_database(db: Session):
     # Ensure all tables are created
@@ -24,6 +53,7 @@ def seed_database(db: Session):
         student_count = db.query(Student).count()
         if student_count > 0:
             print("Database already seeded with student data.")
+            seed_uploaded_name_list(db, faculty.id)
             seed_rag_policies(db)
             return
 
@@ -188,7 +218,7 @@ def seed_database(db: Session):
     students = []
     for s in students_data:
         student = Student(
-            roll_no=s["roll_no"],
+            roll_no=s["roll_no"], department="CSE",
             name=s["name"],
             class_section=s["class_section"],
             mentor_faculty_id=faculty.id,
@@ -435,6 +465,8 @@ def seed_database(db: Session):
 
     db.commit()
     print("Database seeded successfully with all tables!")
+
+    seed_uploaded_name_list(db, faculty.id)
 
     # Ingest text into RAG
     seed_rag_policies(db)

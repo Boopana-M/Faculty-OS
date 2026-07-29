@@ -54,6 +54,7 @@ class Student(Base):
     student_id = Column(String, unique=True, index=True, nullable=True)
     roll_no = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
+    department = Column(String, nullable=True, index=True)
     class_section = Column(String, nullable=False)
     mentor_faculty_id = Column(Integer, ForeignKey("faculty.id"), nullable=True)
     email = Column(String, nullable=False)
