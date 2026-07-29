@@ -15,7 +15,7 @@ export interface ChatMessage {
   richData?: any;
 }
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export const getAuthToken = () => localStorage.getItem('token');
 export const setAuthToken = (token: string) => localStorage.setItem('token', token);
@@ -117,15 +117,15 @@ export const api = {
           localSchedules = JSON.parse(localData);
         } else {
           localSchedules = [
-            { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
             { id: 2, day_of_week: 'Monday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
-            { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
             { id: 4, day_of_week: 'Tuesday', period: '14:00 - 15:30', subject: 'Machine Learning Lab', class_section: 'CSE-B', room: 'Lab-3' },
-            { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
-            { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+            { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
+            { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
             { id: 7, day_of_week: 'Thursday', period: '10:00 - 11:00', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
-            { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
-            { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+            { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
+            { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
             { id: 10, day_of_week: 'Friday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
           ];
           localStorage.setItem('mock_schedules', JSON.stringify(localSchedules));
@@ -458,15 +458,15 @@ export const api = {
         return JSON.parse(localMockSchedules);
       }
       const defaultMock = [
-        { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 1, day_of_week: 'Monday', period: '09:00 - 10:00', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
         { id: 2, day_of_week: 'Monday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
-        { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 3, day_of_week: 'Tuesday', period: '10:00 - 11:00', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
         { id: 4, day_of_week: 'Tuesday', period: '14:00 - 15:30', subject: 'Machine Learning Lab', class_section: 'CSE-B', room: 'Lab-3' },
-        { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
-        { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CSE-A', room: 'LH-201' },
+        { id: 5, day_of_week: 'Wednesday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
+        { id: 6, day_of_week: 'Wednesday', period: '11:30 - 12:30', subject: 'Design & Analysis of Algorithms', class_section: 'CCE', room: 'LH-201' },
         { id: 7, day_of_week: 'Thursday', period: '10:00 - 11:00', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
-        { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
-        { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CSE-A', room: 'LH-203' },
+        { id: 8, day_of_week: 'Thursday', period: '14:00 - 15:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
+        { id: 9, day_of_week: 'Friday', period: '09:00 - 10:00', subject: 'Compiler Design', class_section: 'CCE', room: 'LH-203' },
         { id: 10, day_of_week: 'Friday', period: '11:30 - 12:30', subject: 'Machine Learning', class_section: 'CSE-B', room: 'LH-302' },
       ];
       localStorage.setItem('mock_schedules', JSON.stringify(defaultMock));
@@ -688,18 +688,48 @@ export const api = {
   // ==========================================
   // ACADEMIC WORKFLOW API WRAPPERS
   // ==========================================
-  async getAttendance(): Promise<any[]> {
+  async getAttendance(class_section: string = "CCE", date?: string): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/attendance`);
+      const url = date 
+        ? `${API_BASE_URL}/api/attendance?class_section=${class_section}&date=${date}`
+        : `${API_BASE_URL}/api/attendance?class_section=${class_section}`;
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch attendance');
       return await response.json();
     } catch (error) {
       console.warn('Backend getAttendance failed, returning mock data.', error);
-      return [
-        { id: 1, roll_no: "24CC001", name: "A. Kumar", date: "2026-07-27", status: "Absent", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" },
-        { id: 2, roll_no: "24CC002", name: "B. Priya", date: "2026-07-27", status: "Present", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" },
-        { id: 3, roll_no: "24CC003", name: "C. Dinesh", date: "2026-07-27", status: "Present", period: "09:00 - 10:00", subject: "Design & Analysis of Algorithms", class_section: "CSE-A" }
-      ];
+      const local = localStorage.getItem('mock_attendance');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (date) {
+          return parsed.filter((p: any) => p.date === date && p.class_section === class_section);
+        }
+        return parsed;
+      }
+      const defaultMock: any[] = [];
+      localStorage.setItem('mock_attendance', JSON.stringify(defaultMock));
+      return defaultMock;
+    }
+  },
+
+  async getRecordedDates(class_section: string = "CCE"): Promise<any[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/attendance/dates?class_section=${class_section}`);
+      if (!response.ok) throw new Error('Failed to fetch recorded dates');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend getRecordedDates failed, simulating locally.', error);
+      const att = await this.getAttendance(class_section);
+      const slots: any[] = [];
+      const seen = new Set();
+      for (const a of att) {
+        const key = `${a.date}_${a.period}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          slots.push({ date: a.date, period: a.period });
+        }
+      }
+      return slots;
     }
   },
 
@@ -713,7 +743,10 @@ export const api = {
       if (!response.ok) throw new Error('Failed to mark attendance');
       return await response.json();
     } catch (error) {
-      console.warn('Backend markAttendance failed.', error);
+      console.warn('Backend markAttendance failed, updating local storage.', error);
+      const att = await this.getAttendance();
+      const updated = att.map(a => a.roll_no === roll_no ? { ...a, status } : a);
+      localStorage.setItem('mock_attendance', JSON.stringify(updated));
       return { status: 'success' };
     }
   },
@@ -725,10 +758,14 @@ export const api = {
       return await response.json();
     } catch (error) {
       console.warn('Backend getAssignments failed, returning mock data.', error);
-      return [
-        { id: 1, title: "Assignment 1: Divide & Conquer Analysis", subject: "Design & Analysis of Algorithms", class_section: "CSE-A", due_date: "2026-07-20", max_marks: 10, status: "Graded", submissions_count: 5, graded_count: 5 },
-        { id: 2, title: "Assignment 2: Greedy Knapsack & Prim's", subject: "Design & Analysis of Algorithms", class_section: "CSE-A", due_date: "2026-08-05", max_marks: 10, status: "Open", submissions_count: 4, graded_count: 0 }
+      const local = localStorage.getItem('mock_assignments');
+      if (local) return JSON.parse(local);
+      const defaultMock = [
+        { id: 1, title: "Assignment 1: Divide & Conquer Analysis", subject: "Design & Analysis of Algorithms", class_section: "CCE", due_date: "2026-07-20", max_marks: 10, status: "Graded", submissions_count: 0, graded_count: 0 },
+        { id: 2, title: "Assignment 2: Greedy Knapsack & Prim's", subject: "Design & Analysis of Algorithms", class_section: "CCE", due_date: "2026-08-05", max_marks: 10, status: "Open", submissions_count: 0, graded_count: 0 }
       ];
+      localStorage.setItem('mock_assignments', JSON.stringify(defaultMock));
+      return defaultMock;
     }
   },
 
@@ -742,22 +779,37 @@ export const api = {
       if (!response.ok) throw new Error('Failed to schedule assignment');
       return await response.json();
     } catch (error) {
-      console.warn('Backend scheduleAssignment failed.', error);
-      return { status: 'success' };
+      console.warn('Backend scheduleAssignment failed, updating local storage.', error);
+      const current = await this.getAssignments();
+      const newAssign = {
+        id: Math.max(0, ...current.map(a => a.id)) + 1,
+        title,
+        subject: "Design & Analysis of Algorithms",
+        class_section,
+        due_date,
+        max_marks,
+        status: "Open",
+        submissions_count: 0,
+        graded_count: 0
+      };
+      const updated = [...current, newAssign];
+      localStorage.setItem('mock_assignments', JSON.stringify(updated));
+      return { status: 'success', id: newAssign.id };
     }
   },
 
-  async getMarks(): Promise<any[]> {
+  async getMarks(class_section: string = "CCE"): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/marks`);
+      const response = await fetch(`${API_BASE_URL}/api/marks?class_section=${class_section}`);
       if (!response.ok) throw new Error('Failed to fetch marks');
       return await response.json();
     } catch (error) {
       console.warn('Backend getMarks failed, returning mock data.', error);
-      return [
-        { id: 1, roll_no: "24CC001", name: "A. Kumar", subject: "Design & Analysis of Algorithms", cat1_marks: 11, cat2_marks: 9, assignment_marks: 8, lab_marks: 9, total_marks: 37, attendance_percentage: 40 },
-        { id: 2, roll_no: "24CC002", name: "B. Priya", subject: "Design & Analysis of Algorithms", cat1_marks: 14, cat2_marks: 15, assignment_marks: 10, lab_marks: 10, total_marks: 49, attendance_percentage: 100 }
-      ];
+      const local = localStorage.getItem('mock_marks');
+      if (local) return JSON.parse(local);
+      const defaultMock: any[] = [];
+      localStorage.setItem('mock_marks', JSON.stringify(defaultMock));
+      return defaultMock;
     }
   },
 
@@ -767,7 +819,235 @@ export const api = {
       if (!response.ok) throw new Error('Failed to calculate marks');
       return await response.json();
     } catch (error) {
+      console.warn('Backend calculateMarks failed, simulating local calculations.', error);
+      const current = await this.getMarks();
+      const updated = current.map(m => ({
+        ...m,
+        total_marks: (m.cat1_marks || 0) + (m.cat2_marks || 0) + (m.assignment_marks || 0) + (m.lab_marks || 0)
+      }));
+      localStorage.setItem('mock_marks', JSON.stringify(updated));
       return { status: 'success' };
+    }
+  },
+
+  async uploadNamelist(file: File, class_section: string, subject: string): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('class_section', class_section);
+      formData.append('subject', subject);
+      
+      const response = await fetch(`${API_BASE_URL}/api/students/upload-namelist`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to upload namelist');
+      }
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend uploadNamelist failed, simulating locally.', error);
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const text = reader.result as string;
+            const lines = text.split('\n');
+            
+            const currentAttendance = await this.getAttendance();
+            const currentMarks = await this.getMarks();
+            
+            let addedCount = 0;
+            let updatedCount = 0;
+            
+            const updatedAttendance = [...currentAttendance];
+            const updatedMarks = [...currentMarks];
+            
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              if (!line) continue;
+              
+              // Skip header lines
+              if (line.toLowerCase().includes('roll_no') || line.toLowerCase().includes('roll call') || line.toLowerCase().includes('student name')) {
+                continue;
+              }
+              
+              const emailMatch = line.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+              const email = emailMatch ? emailMatch[0] : null;
+              
+              let rollMatch = line.match(/\b([0-9]{2}[A-Za-z]{2,3}[0-9]{3,5})\b/);
+              if (!rollMatch) {
+                rollMatch = line.match(/\b([A-Za-z]+[0-9]+[A-Za-z0-9]*|[0-9]+[A-Za-z]+[A-Za-z0-9]*)\b/);
+              }
+              
+              if (rollMatch) {
+                const roll_no = rollMatch[1].toUpperCase();
+                if (roll_no.length < 4) continue;
+                
+                let rest = line.replace(rollMatch[0], '');
+                if (email) {
+                  rest = rest.replace(email, '');
+                }
+                
+                rest = rest.replace(/[,;|\t:_\-\(\)\[\]]/g, ' ').trim();
+                const words = rest.split(/\s+/);
+                const nameWords = words.filter(w => /^[a-zA-Z.]+$/.test(w));
+                const filtered = nameWords.filter(w => !['cse-a', 'cse-b', 'cse', 'section'].includes(w.toLowerCase()));
+                let name = filtered.join(' ');
+                if (!name || name.length < 2) {
+                  name = "Student " + roll_no;
+                }
+                
+                const existingIdx = updatedAttendance.findIndex(a => a.roll_no === roll_no);
+                if (existingIdx !== -1) {
+                  updatedAttendance[existingIdx] = {
+                    ...updatedAttendance[existingIdx],
+                    name,
+                    class_section: class_section
+                  };
+                  
+                  const existingMarkIdx = updatedMarks.findIndex(m => m.roll_no === roll_no);
+                  if (existingMarkIdx !== -1) {
+                    updatedMarks[existingMarkIdx] = {
+                      ...updatedMarks[existingMarkIdx],
+                      name
+                    };
+                  }
+                  updatedCount++;
+                } else {
+                  updatedAttendance.push({
+                    id: Math.floor(Math.random() * 10000),
+                    roll_no,
+                    name,
+                    date: "2026-07-27",
+                    status: "Present",
+                    period: "09:00 - 10:00",
+                    subject: subject,
+                    class_section: class_section
+                  });
+                  
+                  updatedMarks.push({
+                    id: Math.floor(Math.random() * 10000),
+                    roll_no,
+                    name,
+                    subject: subject,
+                    cat1_marks: null,
+                    cat2_marks: null,
+                    assignment_marks: null,
+                    lab_marks: null,
+                    total_marks: null,
+                    attendance_percentage: 100
+                  });
+                  addedCount++;
+                }
+              }
+            }
+            
+            localStorage.setItem('mock_attendance', JSON.stringify(updatedAttendance));
+            localStorage.setItem('mock_marks', JSON.stringify(updatedMarks));
+            
+            resolve({
+              status: 'success',
+              message: `Namelist processed: ${addedCount} students created, ${updatedCount} updated.`,
+              created: addedCount,
+              updated: updatedCount
+            });
+          } catch (e) {
+            reject(e);
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+      });
+    }
+  },
+
+  async saveAttendanceBulk(date: string, period: string, subject: string, class_section: string, records: { roll_no: string, status: string }[]): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/attendance/bulk-save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, period, subject, class_section, records })
+      });
+      if (!response.ok) throw new Error('Failed to save attendance records');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend saveAttendanceBulk failed, simulating locally.', error);
+      const att = await this.getAttendance();
+      const updated = [...att];
+      for (const r of records) {
+        const idx = updated.findIndex(a => a.roll_no === r.roll_no && a.date === date);
+        if (idx !== -1) {
+          updated[idx].status = r.status;
+          updated[idx].period = period;
+        } else {
+          const st = att.find(a => a.roll_no === r.roll_no);
+          updated.push({
+            id: Math.floor(Math.random() * 10000),
+            roll_no: r.roll_no,
+            name: st ? st.name : "Student",
+            date,
+            status: r.status,
+            period,
+            subject,
+            class_section
+          });
+        }
+      }
+      localStorage.setItem('mock_attendance', JSON.stringify(updated));
+      return { status: 'success', message: 'Attendance records saved locally.' };
+    }
+  },
+
+  async deduplicateAcademicData(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/academic/deduplicate`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to remove duplicate data');
+      return await response.json();
+    } catch (error) {
+      console.warn('Backend deduplicateAcademicData failed, simulating locally.', error);
+      const att = await this.getAttendance();
+      const uniqueAtt: any[] = [];
+      const seenAtt = new Set();
+      let removedAtt = 0;
+      
+      for (const item of att) {
+        const key = `${item.roll_no}-${item.date}-${item.subject}-${item.period}`;
+        if (seenAtt.has(key)) {
+          removedAtt++;
+        } else {
+          seenAtt.add(key);
+          uniqueAtt.push(item);
+        }
+      }
+      
+      const marks = await this.getMarks();
+      const uniqueMarks: any[] = [];
+      const seenMarks = new Set();
+      let removedMarks = 0;
+      for (const item of marks) {
+        const key = `${item.roll_no}-${item.subject}`;
+        if (seenMarks.has(key)) {
+          removedMarks++;
+        } else {
+          seenMarks.add(key);
+          uniqueMarks.push(item);
+        }
+      }
+      
+      localStorage.setItem('mock_attendance', JSON.stringify(uniqueAtt));
+      localStorage.setItem('mock_marks', JSON.stringify(uniqueMarks));
+      
+      return {
+        status: 'success',
+        removed_attendance: removedAtt,
+        removed_marks: removedMarks,
+        removed_submissions: 0,
+        total_removed: removedAtt + removedMarks
+      };
     }
   },
 

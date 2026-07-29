@@ -20,10 +20,10 @@ def seed_database(db: Session):
     faculty = db.query(Faculty).filter(Faculty.email == demo_email).first()
     
     if faculty:
-        # Check if student is seeded, if yes, skip main seed but do RAG
-        student_count = db.query(Student).count()
-        if student_count > 0:
-            print("Database already seeded with student data.")
+        # Check if CCE timetable is seeded to skip re-seeding
+        cce_seeded = db.query(Timetable).filter(Timetable.class_section == "CCE").first()
+        if cce_seeded:
+            print("Database already seeded with CCE data.")
             seed_rag_policies(db)
             return
 
@@ -69,19 +69,19 @@ def seed_database(db: Session):
     # 2. Create Timetable
     timetable_entries = [
         # Monday
-        Timetable(faculty_id=faculty.id, day_of_week="Monday", period="09:00 - 10:00", subject="Design & Analysis of Algorithms", class_section="CSE-A", room="LH-201"),
+        Timetable(faculty_id=faculty.id, day_of_week="Monday", period="09:00 - 10:00", subject="Design & Analysis of Algorithms", class_section="CCE", room="LH-201"),
         Timetable(faculty_id=faculty.id, day_of_week="Monday", period="11:30 - 12:30", subject="Machine Learning", class_section="CSE-B", room="LH-302"),
         # Tuesday
-        Timetable(faculty_id=faculty.id, day_of_week="Tuesday", period="10:00 - 11:00", subject="Design & Analysis of Algorithms", class_section="CSE-A", room="LH-201"),
+        Timetable(faculty_id=faculty.id, day_of_week="Tuesday", period="10:00 - 11:00", subject="Design & Analysis of Algorithms", class_section="CCE", room="LH-201"),
         Timetable(faculty_id=faculty.id, day_of_week="Tuesday", period="14:00 - 15:30", subject="Machine Learning Lab", class_section="CSE-B", room="Lab-3"),
         # Wednesday
-        Timetable(faculty_id=faculty.id, day_of_week="Wednesday", period="09:00 - 10:00", subject="Compiler Design", class_section="CSE-A", room="LH-203"),
-        Timetable(faculty_id=faculty.id, day_of_week="Wednesday", period="11:30 - 12:30", subject="Design & Analysis of Algorithms", class_section="CSE-A", room="LH-201"),
+        Timetable(faculty_id=faculty.id, day_of_week="Wednesday", period="09:00 - 10:00", subject="Compiler Design", class_section="CCE", room="LH-203"),
+        Timetable(faculty_id=faculty.id, day_of_week="Wednesday", period="11:30 - 12:30", subject="Design & Analysis of Algorithms", class_section="CCE", room="LH-201"),
         # Thursday
         Timetable(faculty_id=faculty.id, day_of_week="Thursday", period="10:00 - 11:00", subject="Machine Learning", class_section="CSE-B", room="LH-302"),
-        Timetable(faculty_id=faculty.id, day_of_week="Thursday", period="14:00 - 15:00", subject="Compiler Design", class_section="CSE-A", room="LH-203"),
+        Timetable(faculty_id=faculty.id, day_of_week="Thursday", period="14:00 - 15:00", subject="Compiler Design", class_section="CCE", room="LH-203"),
         # Friday
-        Timetable(faculty_id=faculty.id, day_of_week="Friday", period="09:00 - 10:00", subject="Compiler Design", class_section="CSE-A", room="LH-203"),
+        Timetable(faculty_id=faculty.id, day_of_week="Friday", period="09:00 - 10:00", subject="Compiler Design", class_section="CCE", room="LH-203"),
         Timetable(faculty_id=faculty.id, day_of_week="Friday", period="11:30 - 12:30", subject="Machine Learning", class_section="CSE-B", room="LH-302"),
     ]
     
@@ -175,11 +175,6 @@ def seed_database(db: Session):
 
     # 5. Create Students
     students_data = [
-        {"roll_no": "24CC001", "name": "A. Kumar", "class_section": "CSE-A", "email": "kumar.a@student.edu"},
-        {"roll_no": "24CC002", "name": "B. Priya", "class_section": "CSE-A", "email": "priya.b@student.edu"},
-        {"roll_no": "24CC003", "name": "C. Dinesh", "class_section": "CSE-A", "email": "dinesh.c@student.edu"},
-        {"roll_no": "24CC004", "name": "D. Ezhil", "class_section": "CSE-A", "email": "ezhil.d@student.edu"},
-        {"roll_no": "24CC005", "name": "E. Farhan", "class_section": "CSE-A", "email": "farhan.e@student.edu"},
         {"roll_no": "24CC006", "name": "F. Gowri", "class_section": "CSE-B", "email": "gowri.f@student.edu"},
         {"roll_no": "24CC007", "name": "G. Hari", "class_section": "CSE-B", "email": "hari.g@student.edu"},
         {"roll_no": "24CC008", "name": "H. Indhu", "class_section": "CSE-B", "email": "indhu.h@student.edu"},
@@ -204,8 +199,8 @@ def seed_database(db: Session):
 
     # 6. Create Assignments
     assignments = [
-        Assignment(title="Assignment 1: Divide & Conquer Analysis", subject="Design & Analysis of Algorithms", class_section="CSE-A", due_date="2026-07-20", max_marks=10, status="Graded"),
-        Assignment(title="Assignment 2: Greedy Knapsack & Prim's", subject="Design & Analysis of Algorithms", class_section="CSE-A", due_date="2026-08-05", max_marks=10, status="Open"),
+        Assignment(title="Assignment 1: Divide & Conquer Analysis", subject="Design & Analysis of Algorithms", class_section="CCE", due_date="2026-07-20", max_marks=10, status="Graded"),
+        Assignment(title="Assignment 2: Greedy Knapsack & Prim's", subject="Design & Analysis of Algorithms", class_section="CCE", due_date="2026-08-05", max_marks=10, status="Open"),
         Assignment(title="Assignment 3: Neural Net Backpropagation", subject="Machine Learning", class_section="CSE-B", due_date="2026-08-10", max_marks=20, status="Open"),
     ]
     for a in assignments:
@@ -217,48 +212,38 @@ def seed_database(db: Session):
     # 7. Create Submissions and Attendance records
     dates = ["2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27"]
     
-    # Ingesting mock attendance for CSE-A DAA (Preethi R teaches it)
+    # Ingesting mock attendance for CCE DAA (Preethi R teaches it)
     for s in students:
-        if s.class_section == "CSE-A":
+        if s.class_section == "CCE":
             # Graded submissions for Assignment 1
             sub1 = Submission(
                 assignment_id=assignments[0].id,
                 student_id=s.id,
                 submitted_at="2026-07-19 14:32:00",
-                marks_obtained=8 if s.roll_no == "24CC001" else (10 if s.roll_no == "24CC002" else 7),
+                marks_obtained=8,
                 status="Graded"
             )
             db.add(sub1)
             
             # Pending or submitted for Assignment 2
-            if s.roll_no != "24CC001":  # Kumar hasn't submitted yet
-                sub2 = Submission(
-                    assignment_id=assignments[1].id,
-                    student_id=s.id,
-                    submitted_at="2026-07-26 10:15:00",
-                    marks_obtained=None,
-                    status="Submitted"
-                )
-                db.add(sub2)
+            sub2 = Submission(
+                assignment_id=assignments[1].id,
+                student_id=s.id,
+                submitted_at="2026-07-26 10:15:00",
+                marks_obtained=None,
+                status="Submitted"
+            )
+            db.add(sub2)
 
             # Attendance records
-            # Kumar (24CC001) is absent on 23rd, 24th, and 26th to represent low attendance (40% attendance)
-            # Dinesh (24CC003) is absent on 25th (80%)
-            # Others have 100%
             for d in dates:
-                status = "Present"
-                if s.roll_no == "24CC001" and d in ["2026-07-23", "2026-07-24", "2026-07-26"]:
-                    status = "Absent"
-                elif s.roll_no == "24CC003" and d == "2026-07-25":
-                    status = "Absent"
-                
                 rec = AttendanceRecord(
                     student_id=s.id,
                     date=d,
-                    status=status,
+                    status="Present",
                     period="09:00 - 10:00",
                     subject="Design & Analysis of Algorithms",
-                    class_section="CSE-A"
+                    class_section="CCE"
                 )
                 db.add(rec)
         else:
@@ -275,24 +260,18 @@ def seed_database(db: Session):
                 db.add(rec)
 
     # 8. Create Internal Marks
-    # Let's seed internal marks for CSE-A students in DAA
+    # Let's seed internal marks for CCE students in DAA
     for s in students:
-        if s.class_section == "CSE-A":
-            cat1 = 11 if s.roll_no == "24CC001" else (14 if s.roll_no == "24CC002" else 10)
-            cat2 = 9 if s.roll_no == "24CC001" else (15 if s.roll_no == "24CC002" else 11)
-            assignment = 8 if s.roll_no == "24CC001" else (10 if s.roll_no == "24CC002" else 7)
-            lab = 9 if s.roll_no == "24CC001" else (10 if s.roll_no == "24CC002" else 8)
-            attendance_pct = 40 if s.roll_no == "24CC001" else (80 if s.roll_no == "24CC003" else 100)
-            
+        if s.class_section == "CCE":
             mark = InternalMark(
                 student_id=s.id,
                 subject="Design & Analysis of Algorithms",
-                cat1_marks=cat1,
-                cat2_marks=cat2,
-                assignment_marks=assignment,
-                lab_marks=lab,
-                total_marks=cat1 + cat2 + assignment + lab,
-                attendance_percentage=attendance_pct
+                cat1_marks=14,
+                cat2_marks=15,
+                assignment_marks=10,
+                lab_marks=10,
+                total_marks=49,
+                attendance_percentage=100
             )
             db.add(mark)
 
