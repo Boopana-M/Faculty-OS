@@ -1,0 +1,119 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Base - Dark Mode (following user rule "dont use light mode for ui") */
+  --ink:        #F8FAFC;   /* primary text */
+  --ink-muted:  #94A3B8;   /* secondary text */
+  --paper:      #0F172A;   /* app background (slate-900) */
+  --surface:    #1E293B;   /* card background (slate-800) */
+  --border:     #334155;   /* hairline borders (slate-700) */
+
+  /* Agent 1 - Faculty Assistant */
+  --agent1-500: #6366F1;   /* primary accent */
+  --agent1-100: #1E1B4B;   /* tint background */
+  --agent1-700: #4338CA;   /* hover/pressed */
+
+  /* Agent 2 - Academic Workflow */
+  --agent2-500: #10B981;
+  --agent2-100: #064E3B;
+  --agent2-700: #047857;
+
+  /* Agent 3 - Analytics & Accreditation */
+  --agent3-500: #F59E0B;
+  --agent3-100: #78350F;
+  --agent3-700: #D97706;
+
+  /* Agent 4 - Research & Grants (sky) */
+  --agent4-500: #38BDF8;
+  --agent4-100: #082F49;
+  --agent4-700: #0369A1;
+
+  /* Agent 5 - Exam & Assessment (fuchsia) */
+  --agent5-500: #D946EF;
+  --agent5-100: #4A044E;
+  --agent5-700: #A21CAF;
+
+  /* Agent 6 - Mentor & Wellbeing (rose) */
+  --agent6-500: #FB7185;
+  --agent6-100: #4C0519;
+  --agent6-700: #BE123C;
+
+  /* Status (used across all agents) */
+  --status-good:  #10B981;
+  --status-warn:  #F59E0B;
+  --status-bad:   #EF4444;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  
+  /* Default to Agent 1 */
+  --accent-500: var(--agent1-500);
+  --accent-100: var(--agent1-100);
+  --accent-700: var(--agent1-700);
+}
+
+.theme-agent1 {
+  --accent-500: var(--agent1-500);
+  --accent-100: var(--agent1-100);
+  --accent-700: var(--agent1-700);
+}
+
+.theme-agent2 {
+  --accent-500: var(--agent2-500);
+  --accent-100: var(--agent2-100);
+  --accent-700: var(--agent2-700);
+}
+
+.theme-agent3 {
+  --accent-500: var(--agent3-500);
+  --accent-100: var(--agent3-100);
+  --accent-700: var(--agent3-700);
+}
+
+.theme-agent4 {
+  --accent-500: var(--agent4-500);
+  --accent-100: var(--agent4-100);
+  --accent-700: var(--agent4-700);
+}
+
+.theme-agent5 {
+  --accent-500: var(--agent5-500);
+  --accent-100: var(--agent5-100);
+  --accent-700: var(--agent5-700);
+}
+
+.theme-agent6 {
+  --accent-500: var(--agent6-500);
+  --accent-100: var(--agent6-100);
+  --accent-700: var(--agent6-700);
+}
+
+body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
+}
