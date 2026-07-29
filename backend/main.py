@@ -1,12 +1,10 @@
 import os
 import json
 import asyncio
-import datetime
 from fastapi import FastAPI, Depends, HTTPException, status, Body, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect
 from typing import Optional
 
 from core.database import get_db, engine, Base
@@ -17,7 +15,6 @@ from core.models import (
 )
 from core.auth import verify_password, create_access_token, verify_token
 from core.seed import seed_database
-from core.roster_import import read_roster_file
 from agents.faculty_assistant.agent import handle_faculty_assistant_chat
 from agents.academic_workflow.agent import handle_academic_workflow_chat
 from agents.analytics.agent import handle_analytics_chat
@@ -27,20 +24,6 @@ from agents.mentor_wellbeing.agent import handle_mentor_wellbeing_chat
 
 # Initialize DB tables
 Base.metadata.create_all(bind=engine)
-
-# create_all does not add columns to an existing SQLite database. Keep the MVP's
-# existing local database compatible when department-scoped rosters are introduced.
-def ensure_student_department_column():
-    inspector = inspect(engine)
-    if "student" not in inspector.get_table_names():
-        return
-    columns = {column["name"] for column in inspector.get_columns("student")}
-    if "department" not in columns:
-        with engine.begin() as connection:
-            connection.exec_driver_sql("ALTER TABLE student ADD COLUMN department VARCHAR")
-
-
-ensure_student_department_column()
 
 app = FastAPI(title="EduPilot Backend", version="1.0.0")
 
@@ -533,180 +516,22 @@ def legacy_faculty_assistant_chat_stream(payload: dict = Body(...), db: Session 
 # REST API FOR ACADEMIC WORKFLOW (AGENT 2)
 # ==========================================
 
-def attendance_percentage(db: Session, student_id: int, subject: Optional[str] = None) -> int:
-    query = db.query(AttendanceRecord).filter(AttendanceRecord.student_id == student_id)
-    if subject:
-        query = query.filter(AttendanceRecord.subject == subject)
-    records = query.all()
-    if not records:
-        return 0
-    return round(100 * sum(record.status == "Present" for record in records) / len(records))
-
-
-def sync_mark_attendance(db: Session, student: Student, subject: str, date: str, status_value: str, period: str, class_section: str):
-    record = db.query(AttendanceRecord).filter(
-        AttendanceRecord.student_id == student.id,
-        AttendanceRecord.date == date,
-        AttendanceRecord.subject == subject,
-    ).first()
-    if record:
-        record.status = status_value
-        record.period = period
-        record.class_section = class_section
-    else:
-        db.add(AttendanceRecord(
-            student_id=student.id, date=date, status=status_value, period=period,
-            subject=subject, class_section=class_section,
-        ))
-
-
-def sync_student_dependents(db: Session, students: list[Student], faculty_id: int = 1):
-    """Keep every class workspace in sync when the shared roster changes."""
-    for student in students:
-        if not db.query(Mentee).filter(Mentee.student_id == student.id).first():
-            db.add(Mentee(
-                student_id=student.id, mentor_faculty_id=student.mentor_faculty_id or faculty_id,
-                class_section=student.class_section,
-            ))
-        assignments = db.query(Assignment).filter(Assignment.class_section == student.class_section).all()
-        for assignment in assignments:
-            exists = db.query(Submission).filter(
-                Submission.assignment_id == assignment.id, Submission.student_id == student.id,
-            ).first()
-            if not exists:
-                db.add(Submission(
-                    assignment_id=assignment.id, student_id=student.id,
-                    submitted_at="-", marks_obtained=None, status="Pending",
-                ))
-        if not db.query(InternalMark).filter(InternalMark.student_id == student.id).first():
-            db.add(InternalMark(
-                student_id=student.id, subject="Not assigned", cat1_marks=None,
-                cat2_marks=None, assignment_marks=None, lab_marks=None,
-                total_marks=None, attendance_percentage=0,
-            ))
-
-
-@app.post("/api/attendance/roster/import")
-async def import_attendance_roster(
-    file: UploadFile = File(...),
-    department: str = Form(...),
-    class_section: str = Form("CCE-A"),
-    db: Session = Depends(get_db),
-):
-    if not file.filename or not department.strip():
-        raise HTTPException(status_code=400, detail="Choose a roster file to upload.")
-    try:
-        rows = read_roster_file(file.filename, await file.read())
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not read roster: {exc}")
-
-    faculty_id = 1
-    created = updated = 0
-    for row in rows:
-        student = db.query(Student).filter(Student.roll_no == row["roll_no"]).first()
-        if student:
-            student.name = row["name"]
-            student.student_id = row["student_id"] or student.student_id
-            student.department = department.strip().upper()
-            student.class_section = class_section
-            student.mentor_faculty_id = student.mentor_faculty_id or faculty_id
-            updated += 1
-        else:
-            db.add(Student(
-                roll_no=row["roll_no"], student_id=row["student_id"] or None, name=row["name"],
-                department=department.strip().upper(), class_section=class_section, mentor_faculty_id=faculty_id,
-                email=f"{row['roll_no'].lower()}@student.edu",
-            ))
-            created += 1
-    db.commit()
-    imported_students = db.query(Student).filter(Student.roll_no.in_([row["roll_no"] for row in rows])).all()
-    sync_student_dependents(db, imported_students)
-    db.commit()
-    return {"status": "success", "department": department.strip().upper(), "class_section": class_section, "imported": len(rows), "created": created, "updated": updated}
-
-
-@app.get("/api/attendance/roster")
-def get_attendance_roster(
-    department: Optional[str] = None,
-    class_section: str = "CCE-A",
-    subject: str = "Attendance Register",
-    date: Optional[str] = None,
-    db: Session = Depends(get_db),
-):
-    selected_date = date or datetime.date.today().isoformat()
-    students_query = db.query(Student).filter(Student.class_section == class_section)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    students = students_query.order_by(Student.roll_no).all()
-    records = {
-        record.student_id: record for record in db.query(AttendanceRecord).filter(
-            AttendanceRecord.class_section == class_section,
-            AttendanceRecord.subject == subject,
-            AttendanceRecord.date == selected_date,
-        ).all()
-    }
-    return [{
-        "id": student.id, "roll_no": student.roll_no, "register_no": student.student_id,
-        "name": student.name, "department": student.department, "class_section": student.class_section, "date": selected_date,
-        "subject": subject, "status": records[student.id].status if student.id in records else "Unmarked",
-        "attendance_percentage": attendance_percentage(db, student.id, subject),
-    } for student in students]
-
-
-@app.get("/api/departments")
-def get_departments(db: Session = Depends(get_db)):
-    return [row[0] for row in db.query(Student.department).distinct().order_by(Student.department).all() if row[0]]
-
-
-@app.get("/api/classes")
-def get_class_sections(department: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(Student.class_section)
-    if department:
-        query = query.filter(Student.department == department)
-    return [row[0] for row in query.distinct().order_by(Student.class_section).all() if row[0]]
-
-
-@app.post("/api/students")
-def add_student(payload: dict = Body(...), db: Session = Depends(get_db)):
-    roll_no = str(payload.get("roll_no", "")).strip().upper()
-    name = str(payload.get("name", "")).strip()
-    department = str(payload.get("department", "")).strip().upper()
-    class_section = str(payload.get("class_section", "")).strip().upper()
-    register_no = str(payload.get("register_no", "")).strip()
-    if not all([roll_no, name, department, class_section]):
-        raise HTTPException(status_code=400, detail="Roll number, name, department, and class are required.")
-    if db.query(Student).filter(Student.roll_no == roll_no).first():
-        raise HTTPException(status_code=409, detail=f"Student with roll number {roll_no} already exists.")
-    student = Student(
-        roll_no=roll_no, student_id=register_no or None, name=name, department=department,
-        class_section=class_section, mentor_faculty_id=1, email=f"{roll_no.lower()}@student.edu",
-    )
-    db.add(student)
-    db.commit()
-    db.refresh(student)
-    sync_student_dependents(db, [student])
-    db.commit()
-    return {
-        "status": "success", "id": student.id, "roll_no": student.roll_no, "name": student.name,
-        "department": student.department, "class_section": student.class_section,
-    }
-
-
-@app.get("/api/students")
-def get_students(department: Optional[str] = None, class_section: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(Student)
-    if department:
-        query = query.filter(Student.department == department)
-    if class_section:
-        query = query.filter(Student.class_section == class_section)
-    return [{
-        "id": student.id, "roll_no": student.roll_no, "register_no": student.student_id,
-        "name": student.name, "department": student.department, "class_section": student.class_section,
-    } for student in query.order_by(Student.roll_no).all()]
-
 @app.get("/api/attendance")
-def get_attendance(db: Session = Depends(get_db)):
-    records = db.query(AttendanceRecord).all()
+def get_attendance(class_section: str = "CCE", date: str = None, db: Session = Depends(get_db)):
+    if not date:
+        latest_date_row = db.query(AttendanceRecord.date).filter(
+            AttendanceRecord.class_section == class_section
+        ).order_by(AttendanceRecord.date.desc()).first()
+        
+        if not latest_date_row:
+            return []
+        date = latest_date_row[0]
+        
+    records = db.query(AttendanceRecord).filter(
+        AttendanceRecord.class_section == class_section,
+        AttendanceRecord.date == date
+    ).all()
+    
     res = []
     for r in records:
         student = db.query(Student).filter(Student.id == r.student_id).first()
@@ -722,56 +547,117 @@ def get_attendance(db: Session = Depends(get_db)):
         })
     return res
 
+@app.get("/api/attendance/dates")
+def get_recorded_dates(class_section: str = "CCE", db: Session = Depends(get_db)):
+    rows = db.query(AttendanceRecord.date, AttendanceRecord.period).filter(
+        AttendanceRecord.class_section == class_section
+    ).distinct().all()
+    return [{"date": r[0], "period": r[1]} for r in rows]
+
 @app.post("/api/attendance/mark")
 def mark_attendance(payload: dict = Body(...), db: Session = Depends(get_db)):
     roll_no = payload.get("roll_no")
     date = payload.get("date", datetime.date.today().strftime("%Y-%m-%d"))
     status = payload.get("status", "Present")
-    if status not in {"Present", "Absent"}:
-        raise HTTPException(status_code=400, detail="Status must be Present or Absent")
-    subject = payload.get("subject", "Attendance Register")
-    class_section = payload.get("class_section", "CCE-A")
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    class_section = payload.get("class_section", "CSE-A")
     period = payload.get("period", "09:00 - 10:00")
 
     student = db.query(Student).filter(Student.roll_no == roll_no).first()
     if not student:
          raise HTTPException(status_code=404, detail="Student not found")
 
-    sync_mark_attendance(db, student, subject, date, status, period, class_section)
+    # Update or insert
+    record = db.query(AttendanceRecord).filter(
+        AttendanceRecord.student_id == student.id,
+        AttendanceRecord.date == date,
+        AttendanceRecord.subject == subject
+    ).first()
+
+    if record:
+        record.status = status
+    else:
+        record = AttendanceRecord(
+            student_id=student.id,
+            date=date,
+            status=status,
+            period=period,
+            subject=subject,
+            class_section=class_section
+        )
+        db.add(record)
+    
     db.commit()
-    return {"status": "success", "message": f"Attendance marked for {roll_no} as {status}.", "attendance_percentage": attendance_percentage(db, student.id, subject)}
+    return {"status": "success", "message": f"Attendance marked for {roll_no} as {status}."}
 
-
-@app.post("/api/attendance/mark-bulk")
-def mark_attendance_bulk(payload: dict = Body(...), db: Session = Depends(get_db)):
-    class_section = payload.get("class_section", "CCE-A")
-    subject = payload.get("subject", "Attendance Register")
-    date = payload.get("date", datetime.date.today().isoformat())
+@app.post("/api/attendance/bulk-save")
+def bulk_save_attendance(payload: dict = Body(...), db: Session = Depends(get_db)):
+    date = payload.get("date", datetime.date.today().strftime("%Y-%m-%d"))
     period = payload.get("period", "09:00 - 10:00")
-    status_value = payload.get("status", "Present")
-    if status_value not in {"Present", "Absent"}:
-        raise HTTPException(status_code=400, detail="Status must be Present or Absent")
-    students_query = db.query(Student).filter(Student.class_section == class_section)
-    if payload.get("department"):
-        students_query = students_query.filter(Student.department == payload["department"])
-    students = students_query.all()
-    for student in students:
-        sync_mark_attendance(db, student, subject, date, status_value, period, class_section)
+    subject = payload.get("subject", "Design & Analysis of Algorithms")
+    class_section = payload.get("class_section", "CCE")
+    records = payload.get("records", [])
+
+    for r_data in records:
+        roll_no = r_data.get("roll_no")
+        status = r_data.get("status", "Present")
+        if not roll_no:
+            continue
+            
+        student = db.query(Student).filter(Student.roll_no == roll_no).first()
+        if not student:
+            continue
+            
+        record = db.query(AttendanceRecord).filter(
+            AttendanceRecord.student_id == student.id,
+            AttendanceRecord.date == date,
+            AttendanceRecord.subject == subject,
+            AttendanceRecord.period == period
+        ).first()
+        
+        if record:
+            record.status = status
+        else:
+            record = AttendanceRecord(
+                student_id=student.id,
+                date=date,
+                status=status,
+                period=period,
+                subject=subject,
+                class_section=class_section
+            )
+            db.add(record)
+            db.flush()
+            
+        all_att = db.query(AttendanceRecord).filter(
+            AttendanceRecord.student_id == student.id,
+            AttendanceRecord.subject == subject
+        ).all()
+        
+        if all_att:
+            p_count = sum(1 for a in all_att if a.status == "Present")
+            pct = int((p_count / len(all_att)) * 100)
+            
+            mark = db.query(InternalMark).filter(
+                InternalMark.student_id == student.id,
+                InternalMark.subject == subject
+            ).first()
+            if mark:
+                mark.attendance_percentage = pct
+            else:
+                mark = InternalMark(
+                    student_id=student.id,
+                    subject=subject,
+                    attendance_percentage=pct
+                )
+                db.add(mark)
+                
     db.commit()
-    return {"status": "success", "marked": len(students), "status_value": status_value}
+    return {"status": "success", "message": f"Successfully stored daily attendance for {len(records)} students."}
 
 @app.get("/api/assignments")
-def get_assignments(
-    department: Optional[str] = None,
-    class_section: Optional[str] = None,
-    db: Session = Depends(get_db),
-):
-    # Class sections are department-qualified (for example, CSE-A and CCE-A),
-    # so filtering by the selected section keeps each workspace isolated.
-    assigns_query = db.query(Assignment)
-    if class_section:
-        assigns_query = assigns_query.filter(Assignment.class_section == class_section)
-    assigns = assigns_query.order_by(Assignment.due_date).all()
+def get_assignments(db: Session = Depends(get_db)):
+    assigns = db.query(Assignment).all()
     res = []
     for a in assigns:
         # Get submissions count
@@ -813,10 +699,7 @@ def schedule_assignment(payload: dict = Body(...), db: Session = Depends(get_db)
     db.refresh(new_assign)
     
     # Auto-seed submissions for students in that class section
-    students_query = db.query(Student).filter(Student.class_section == class_section)
-    if payload.get("department"):
-        students_query = students_query.filter(Student.department == payload["department"])
-    students = students_query.all()
+    students = db.query(Student).filter(Student.class_section == class_section).all()
     for s in students:
         # Just create blank pending submissions
         sub = Submission(
@@ -832,58 +715,26 @@ def schedule_assignment(payload: dict = Body(...), db: Session = Depends(get_db)
     return {"status": "success", "id": new_assign.id, "message": f"Assignment scheduled for {class_section}."}
 
 @app.get("/api/marks")
-def get_marks(department: Optional[str] = None, class_section: Optional[str] = None, db: Session = Depends(get_db)):
-    students_query = db.query(Student)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    if class_section:
-        students_query = students_query.filter(Student.class_section == class_section)
+def get_marks(class_section: str = "CCE", db: Session = Depends(get_db)):
+    marks = db.query(InternalMark).join(
+        Student, Student.id == InternalMark.student_id
+    ).filter(Student.class_section == class_section).all()
     res = []
-    for student in students_query.order_by(Student.roll_no).all():
-        m = db.query(InternalMark).filter(InternalMark.student_id == student.id).first()
+    for m in marks:
+        student = db.query(Student).filter(Student.id == m.student_id).first()
         res.append({
-            "id": m.id if m else None, "student_id": student.id, "roll_no": student.roll_no, "name": student.name,
-            "department": student.department, "class_section": student.class_section,
-            "subject": m.subject if m else None, "cat1_marks": m.cat1_marks if m else None,
-            "cat2_marks": m.cat2_marks if m else None, "assignment_marks": m.assignment_marks if m else None,
-            "lab_marks": m.lab_marks if m else None, "total_marks": m.total_marks if m else None,
-            "attendance_percentage": m.attendance_percentage if m else None,
+            "id": m.id,
+            "roll_no": student.roll_no if student else "N/A",
+            "name": student.name if student else "N/A",
+            "subject": m.subject,
+            "cat1_marks": m.cat1_marks,
+            "cat2_marks": m.cat2_marks,
+            "assignment_marks": m.assignment_marks,
+            "lab_marks": m.lab_marks,
+            "total_marks": m.total_marks,
+            "attendance_percentage": m.attendance_percentage
         })
     return res
-
-@app.put("/api/marks/{student_id}")
-def save_student_marks(student_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
-    """Create or update the four manually entered continuous-assessment marks."""
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-
-    limits = {"cat1_marks": 15, "cat2_marks": 15, "assignment_marks": 10, "lab_marks": 10}
-    values = {}
-    for field, limit in limits.items():
-        value = payload.get(field)
-        if value in (None, ""):
-            values[field] = None
-            continue
-        try:
-            value = int(value)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f"{field} must be a whole number")
-        if not 0 <= value <= limit:
-            raise HTTPException(status_code=400, detail=f"{field} must be between 0 and {limit}")
-        values[field] = value
-
-    mark = db.query(InternalMark).filter(InternalMark.student_id == student_id).first()
-    if not mark:
-        mark = InternalMark(student_id=student_id, subject=payload.get("subject") or "Not assigned")
-        db.add(mark)
-    for field, value in values.items():
-        setattr(mark, field, value)
-    mark.subject = payload.get("subject") or mark.subject
-    mark.total_marks = sum(value or 0 for value in values.values())
-    db.commit()
-    db.refresh(mark)
-    return {"status": "success", "student_id": student_id, "total_marks": mark.total_marks}
 
 @app.post("/api/marks/calculate")
 def calculate_marks(payload: dict = Body(...), db: Session = Depends(get_db)):
@@ -895,40 +746,434 @@ def calculate_marks(payload: dict = Body(...), db: Session = Depends(get_db)):
     return {"status": "success", "message": "Calculated total marks successfully."}
 
 @app.get("/api/reminders")
-def get_reminders_list(
-    department: Optional[str] = None,
-    class_section: Optional[str] = None,
-    db: Session = Depends(get_db),
+def get_reminders_list():
+    return [
+        {"id": 1, "task": "Grade DAA Assignment 2 (Greedy)", "due": "2026-08-05", "urgency": "high"},
+        {"id": 2, "task": "Syllabus mapping validation for CAT2 papers", "due": "2026-08-06", "urgency": "medium"},
+        {"id": 3, "task": "Mentee check-in with A. Kumar (overdue)", "due": "2026-07-30", "urgency": "high"}
+    ]
+
+
+@app.post("/api/students/upload-namelist")
+async def upload_namelist(
+    file: UploadFile = File(...),
+    class_section: str = Form("CSE-A"),
+    subject: str = Form("Design & Analysis of Algorithms"),
+    db: Session = Depends(get_db)
 ):
-    """Return reminders for the active class, including un-contacted new students."""
-    students_query = db.query(Student)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    if class_section:
-        students_query = students_query.filter(Student.class_section == class_section)
-    students = students_query.order_by(Student.roll_no).all()
+    import re
+    import json
+    import io
+    from core.llm import llm_client
 
-    reminders = []
-    for assignment in db.query(Assignment).filter(
-        Assignment.class_section == class_section
-    ).order_by(Assignment.due_date).all() if class_section else []:
-        reminders.append({
-            "id": f"assignment-{assignment.id}",
-            "task": f"Review {assignment.title}",
-            "due": assignment.due_date,
-            "urgency": "high" if assignment.status in {"Open", "Grading"} else "medium",
-        })
+    filename = file.filename.lower()
+    contents = await file.read()
+    
+    students_to_process = []
+    
+    # helper for regex fallback
+    def regex_parse_students(text: str, default_sec: str) -> list:
+        parsed = []
+        for line in text.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            email_match = re.search(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', line)
+            email = email_match.group(0) if email_match else None
+            
+            roll_match = re.search(r'\b([0-9]{2}[A-Za-z]{2,3}[0-9]{3,5})\b', line)
+            if not roll_match:
+                roll_match = re.search(r'\b([A-Za-z]+[0-9]+[A-Za-z0-9]*|[0-9]+[A-Za-z]+[A-Za-z0-9]*)\b', line)
+                
+            if roll_match:
+                roll_no = roll_match.group(1).upper()
+                if len(roll_no) < 4:
+                    continue
+                temp_line = line.replace(roll_match.group(0), "")
+                if email:
+                    temp_line = temp_line.replace(email, "")
+                
+                temp_line = re.sub(r'[,;|\t:_\-\(\)\[\]]', ' ', temp_line).strip()
+                words = temp_line.split()
+                name_words = [w for w in words if w.isalpha() or '.' in w]
+                filtered_words = []
+                for w in name_words:
+                    w_lower = w.lower()
+                    if w_lower in ["cse-a", "cse-b", "cse", "ece", "eee", "mech", "civil", "it", "section"]:
+                        continue
+                    filtered_words.append(w)
+                name = " ".join(filtered_words)
+                if not name or len(name) < 2:
+                    name = "Student " + roll_no
+                    
+                parsed.append({
+                    "roll_no": roll_no,
+                    "name": name,
+                    "email": email or f"{roll_no.lower()}@student.edu",
+                    "class_section": default_sec
+                })
+        return parsed
 
-    for student in students:
-        mentee = db.query(Mentee).filter(Mentee.student_id == student.id).first()
-        if mentee and not mentee.last_checkin_date:
-            reminders.append({
-                "id": f"mentee-{student.id}",
-                "task": f"Mentee check-in with {student.name}",
-                "due": "Not scheduled",
-                "urgency": "medium",
-            })
-    return reminders
+    # 1. Parse based on file type
+    if filename.endswith(".csv"):
+        import csv
+        try:
+            decoded = contents.decode("utf-8")
+        except UnicodeDecodeError:
+            decoded = contents.decode("latin-1")
+            
+        reader = csv.reader(io.StringIO(decoded))
+        try:
+            headers = next(reader)
+            headers = [h.strip().lower() for h in headers]
+            roll_idx, name_idx, email_idx, sec_idx = -1, -1, -1, -1
+            for idx, h in enumerate(headers):
+                if "roll" in h:
+                    roll_idx = idx
+                elif "name" in h:
+                    name_idx = idx
+                elif "email" in h:
+                    email_idx = idx
+                elif "section" in h or "class" in h:
+                    sec_idx = idx
+                    
+            if roll_idx == -1 or name_idx == -1:
+                roll_idx, name_idx = 0, 1
+                email_idx = 2 if len(headers) > 2 else -1
+                sec_idx = 3 if len(headers) > 3 else -1
+                reader = csv.reader(io.StringIO(decoded)) # Reset to start if headers are data
+                
+            for row in reader:
+                if not row or len(row) <= max(roll_idx, name_idx):
+                    continue
+                roll_no = row[roll_idx].strip()
+                name = row[name_idx].strip()
+                if not roll_no or not name:
+                    continue
+                email = row[email_idx].strip() if (email_idx != -1 and len(row) > email_idx) else f"{roll_no.lower()}@student.edu"
+                row_sec = row[sec_idx].strip() if (sec_idx != -1 and len(row) > sec_idx) else class_section
+                students_to_process.append({
+                    "roll_no": roll_no,
+                    "name": name,
+                    "email": email,
+                    "class_section": row_sec
+                })
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+
+    elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+        import openpyxl
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+            sheet = wb.active
+            rows = list(sheet.iter_rows(values_only=True))
+            
+            if not rows:
+                raise HTTPException(status_code=400, detail="Empty Excel file uploaded")
+                
+            header_idx = -1
+            roll_col, name_col, email_col, sec_col = -1, -1, -1, -1
+            
+            # Step A: Attempt standard header-based matching
+            for idx, r in enumerate(rows[:15]):
+                cells = [str(c).lower().strip() if c is not None else "" for c in r]
+                r_idx = next((i for i, c in enumerate(cells) if any(x in c for x in ["roll", "reg", "admission", "student id", "r.no", "id"])), -1)
+                n_idx = next((i for i, c in enumerate(cells) if any(x in c for x in ["name", "fullname", "student name", "candidate"])), -1)
+                if r_idx != -1 and n_idx != -1:
+                    header_idx = idx
+                    roll_col = r_idx
+                    name_col = n_idx
+                    email_col = next((i for i, c in enumerate(cells) if any(x in c for x in ["email", "mail", "e-mail"])), -1)
+                    sec_col = next((i for i, c in enumerate(cells) if any(x in c for x in ["section", "class", "sec"])), -1)
+                    break
+                    
+            # Step B: If headers are not matched, perform statistical column classification
+            if roll_col == -1 or name_col == -1:
+                num_cols = len(rows[0]) if rows else 0
+                col_scores = []
+                for col_idx in range(num_cols):
+                    roll_score = 0
+                    name_score = 0
+                    email_score = 0
+                    for r in rows[:40]:
+                        if col_idx >= len(r) or r[col_idx] is None:
+                            continue
+                        val = str(r[col_idx]).strip()
+                        if not val:
+                            continue
+                        if "@" in val and "." in val:
+                            email_score += 1.5
+                        elif len(val) >= 4 and len(val) <= 15 and any(c.isdigit() for c in val) and any(c.isalpha() for c in val):
+                            roll_score += 1.0
+                        elif val.isdigit() and len(val) >= 4 and len(val) <= 12:
+                            roll_score += 0.7
+                        elif len(val) >= 3 and len(val) <= 40 and all(x.isalpha() or x.isspace() or x=='.' for x in val):
+                            name_score += 1.0
+                    col_scores.append({'roll': roll_score, 'name': name_score, 'email': email_score})
+                    
+                if num_cols > 0:
+                    roll_col = max(range(num_cols), key=lambda i: col_scores[i]['roll'])
+                    name_col = max(range(num_cols), key=lambda i: col_scores[i]['name'])
+                    email_col = max(range(num_cols), key=lambda i: col_scores[i]['email'])
+                    
+                    if col_scores[email_col]['email'] == 0:
+                        email_col = -1
+                    if roll_col == name_col:
+                        name_col = next((i for i in sorted(range(num_cols), key=lambda i: col_scores[i]['name'], reverse=True) if i != roll_col), 1 if roll_col != 1 else 0)
+                
+                header_idx = 0
+
+            start_row = header_idx + 1 if header_idx != -1 else 0
+            for r in rows[start_row:]:
+                if not r or len(r) <= max(roll_col, name_col):
+                    continue
+                roll_no = str(r[roll_col]).strip() if r[roll_col] is not None else ""
+                name = str(r[name_col]).strip() if r[name_col] is not None else ""
+                
+                if not roll_no or roll_no.lower() == "none" or not name or name.lower() == "none":
+                    continue
+                if not re.search(r'[A-Za-z0-9]', roll_no):
+                    continue
+                if any(x in roll_no.lower() for x in ["roll", "reg", "name"]):
+                    continue
+                    
+                email = str(r[email_col]).strip() if (email_col != -1 and email_col < len(r) and r[email_col] is not None) else f"{roll_no.lower()}@student.edu"
+                sec = str(r[sec_col]).strip() if (sec_col != -1 and sec_col < len(r) and r[sec_col] is not None) else class_section
+                students_to_process.append({
+                    "roll_no": roll_no,
+                    "name": name,
+                    "email": email,
+                    "class_section": sec
+                })
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse Excel: {str(e)}")
+
+    elif filename.endswith(".pdf"):
+        import pypdf
+        try:
+            reader = pypdf.PdfReader(io.BytesIO(contents))
+            pdf_text = ""
+            for page in reader.pages:
+                pdf_text += page.extract_text() + "\n"
+                
+            if not pdf_text.strip():
+                raise HTTPException(status_code=400, detail="No readable text found in PDF file.")
+                
+            # If Claude LLM is available, use it for intelligent parsing
+            if llm_client.client:
+                system_prompt = (
+                    "You are an expert data extraction assistant. "
+                    "Extract a list of students from the provided raw text. "
+                    "Identify the roll number, student name, email, and class section for each student. "
+                    "Return ONLY a valid JSON list of objects. Each object must have these keys: "
+                    "'roll_no' (string), 'name' (string), 'email' (string), 'class_section' (string). "
+                    f"If email is not found, construct it like 'roll_no@student.edu' (lowercase). "
+                    f"If class_section is not found, default to '{class_section}'. "
+                    "Do not output markdown code blocks, comments, or any text other than raw JSON."
+                )
+                messages = [{"role": "user", "content": f"Extract students from this text:\n\n{pdf_text}"}]
+                response = llm_client.get_chat_response(system_prompt, messages)
+                
+                # clean response in case it contains markdown blocks
+                if "```" in response:
+                    parts = response.split("```")
+                    for p in parts:
+                        p_clean = p.strip()
+                        if p_clean.startswith("json"):
+                            p_clean = p_clean[4:].strip()
+                        if p_clean.startswith("[") and p_clean.endswith("]"):
+                            response = p_clean
+                            break
+                try:
+                    students_to_process = json.loads(response)
+                except Exception:
+                    students_to_process = regex_parse_students(pdf_text, class_section)
+            else:
+                students_to_process = regex_parse_students(pdf_text, class_section)
+        except Exception as e:
+             raise HTTPException(status_code=400, detail=f"Failed to parse PDF: {str(e)}")
+    else:
+        # Fallback as text file
+        try:
+            text = contents.decode("utf-8")
+        except UnicodeDecodeError:
+            text = contents.decode("latin-1")
+        students_to_process = regex_parse_students(text, class_section)
+
+    if not students_to_process:
+        raise HTTPException(status_code=400, detail="No student data could be extracted from the uploaded file. Please verify the format.")
+
+    students_created = 0
+    students_updated = 0
+    
+    for s_data in students_to_process:
+        roll_no = s_data.get("roll_no", "").strip()
+        name = s_data.get("name", "").strip()
+        if not roll_no or not name:
+            continue
+            
+        email = s_data.get("email", "").strip() or f"{roll_no.lower()}@student.edu"
+        row_sec = s_data.get("class_section", "").strip() or class_section
+        
+        student = db.query(Student).filter(Student.roll_no == roll_no).first()
+        if student:
+            student.name = name
+            student.email = email
+            student.class_section = row_sec
+            students_updated += 1
+        else:
+            student = Student(
+                roll_no=roll_no,
+                name=name,
+                email=email,
+                class_section=row_sec
+            )
+            db.add(student)
+            db.flush()
+            students_created += 1
+            
+        dates = db.query(AttendanceRecord.date).filter(
+            AttendanceRecord.class_section == row_sec
+        ).distinct().all()
+        dates = [d[0] for d in dates]
+        if not dates:
+            dates = ["2026-07-27"]
+            
+        for dt in dates:
+            att = db.query(AttendanceRecord).filter(
+                AttendanceRecord.student_id == student.id,
+                AttendanceRecord.date == dt,
+                AttendanceRecord.subject == subject
+            ).first()
+            if not att:
+                existing_att = db.query(AttendanceRecord).filter(
+                    AttendanceRecord.date == dt,
+                    AttendanceRecord.subject == subject,
+                    AttendanceRecord.class_section == row_sec
+                ).first()
+                period = existing_att.period if existing_att else "09:00 - 10:00"
+                
+                att = AttendanceRecord(
+                    student_id=student.id,
+                    date=dt,
+                    status="Present",
+                    period=period,
+                    subject=subject,
+                    class_section=row_sec
+                )
+                db.add(att)
+                
+        mark = db.query(InternalMark).filter(
+            InternalMark.student_id == student.id,
+            InternalMark.subject == subject
+        ).first()
+        if not mark:
+            mark = InternalMark(
+                student_id=student.id,
+                subject=subject,
+                cat1_marks=None,
+                cat2_marks=None,
+                assignment_marks=None,
+                lab_marks=None,
+                total_marks=None,
+                attendance_percentage=100
+            )
+            db.add(mark)
+            
+        assignments = db.query(Assignment).filter(
+            Assignment.class_section == row_sec
+        ).all()
+        for assign in assignments:
+            sub = db.query(Submission).filter(
+                Submission.assignment_id == assign.id,
+                Submission.student_id == student.id
+            ).first()
+            if not sub:
+                sub = Submission(
+                    assignment_id=assign.id,
+                    student_id=student.id,
+                    submitted_at="-",
+                    marks_obtained=None,
+                    status="Pending"
+                )
+                db.add(sub)
+                
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Namelist processed: {students_created} students created, {students_updated} updated.",
+        "created": students_created,
+        "updated": students_updated
+    }
+
+
+@app.post("/api/academic/deduplicate")
+def deduplicate_academic_data(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    
+    # 1. Deduplicate AttendanceRecord
+    dups_att = db.query(
+        AttendanceRecord.student_id, AttendanceRecord.date, AttendanceRecord.subject, AttendanceRecord.period
+    ).group_by(
+        AttendanceRecord.student_id, AttendanceRecord.date, AttendanceRecord.subject, AttendanceRecord.period
+    ).having(func.count(AttendanceRecord.id) > 1).all()
+    
+    removed_att = 0
+    for s_id, dt, subj, prd in dups_att:
+        records = db.query(AttendanceRecord).filter(
+            AttendanceRecord.student_id == s_id,
+            AttendanceRecord.date == dt,
+            AttendanceRecord.subject == subj,
+            AttendanceRecord.period == prd
+        ).order_by(AttendanceRecord.id.asc()).all()
+        for r in records[1:]:
+            db.delete(r)
+            removed_att += 1
+            
+    # 2. Deduplicate InternalMark
+    dups_mark = db.query(
+        InternalMark.student_id, InternalMark.subject
+    ).group_by(
+        InternalMark.student_id, InternalMark.subject
+    ).having(func.count(InternalMark.id) > 1).all()
+    
+    removed_mark = 0
+    for s_id, subj in dups_mark:
+        records = db.query(InternalMark).filter(
+            InternalMark.student_id == s_id,
+            InternalMark.subject == subj
+        ).order_by(InternalMark.id.asc()).all()
+        for r in records[1:]:
+            db.delete(r)
+            removed_mark += 1
+            
+    # 3. Deduplicate Submission
+    dups_sub = db.query(
+        Submission.student_id, Submission.assignment_id
+    ).group_by(
+        Submission.student_id, Submission.assignment_id
+    ).having(func.count(Submission.id) > 1).all()
+    
+    removed_sub = 0
+    for s_id, a_id in dups_sub:
+        records = db.query(Submission).filter(
+            Submission.student_id == s_id,
+            Submission.assignment_id == a_id
+        ).order_by(Submission.id.asc()).all()
+        for r in records[1:]:
+            db.delete(r)
+            removed_sub += 1
+            
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Removed {removed_att + removed_mark + removed_sub} duplicate records.",
+        "removed_attendance": removed_att,
+        "removed_marks": removed_mark,
+        "removed_submissions": removed_sub,
+        "total_removed": removed_att + removed_mark + removed_sub
+    }
+
 
 
 # ==========================================
@@ -936,43 +1181,30 @@ def get_reminders_list(
 # ==========================================
 
 @app.get("/api/analytics/kpis")
-def get_analytics_kpis(department: Optional[str] = None, class_section: Optional[str] = None, db: Session = Depends(get_db)):
-    students_query = db.query(Student)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    if class_section:
-        students_query = students_query.filter(Student.class_section == class_section)
-    students = students_query.all()
-    student_ids = [student.id for student in students]
-    attendance_records = db.query(AttendanceRecord).filter(AttendanceRecord.student_id.in_(student_ids)).all() if student_ids else []
+def get_analytics_kpis(db: Session = Depends(get_db)):
+    total_students = db.query(Student).count()
+    attendance_records = db.query(AttendanceRecord).all()
     present_count = len([r for r in attendance_records if r.status == "Present"])
     avg_attendance = int((present_count / len(attendance_records)) * 100) if attendance_records else 100
     
-    marks = db.query(InternalMark).filter(InternalMark.student_id.in_(student_ids)).all() if student_ids else []
-    avg_marks = int(sum((m.total_marks or 0) for m in marks) / len(marks)) if marks else 0
+    marks = db.query(InternalMark).all()
+    avg_marks = int(sum([m.total_marks for m in marks]) / len(marks)) if marks else 0
     
     co_att = db.query(COAttainment).all()
     attained_count = len([c for c in co_att if c.attained_percentage >= c.target_percentage])
     co_attainment_rate = int((attained_count / len(co_att)) * 100) if co_att else 0
 
     return {
-        "class_section": class_section,
-        "total_students": len(students),
+        "total_students": total_students,
         "avg_attendance": avg_attendance,
         "avg_internal_marks": f"{avg_marks}/50",
         "co_attainment_rate": f"{co_attainment_rate}%"
     }
 
 @app.get("/api/analytics/charts")
-def get_analytics_charts(department: Optional[str] = None, class_section: Optional[str] = None, db: Session = Depends(get_db)):
+def get_analytics_charts(db: Session = Depends(get_db)):
     # Performance distribution: ranges 0-10, 10-20, 20-30, 30-40, 40-50
-    students_query = db.query(Student)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    if class_section:
-        students_query = students_query.filter(Student.class_section == class_section)
-    student_ids = [student.id for student in students_query.all()]
-    marks = db.query(InternalMark).filter(InternalMark.student_id.in_(student_ids)).all() if student_ids else []
+    marks = db.query(InternalMark).all()
     distribution = {"0-10": 0, "10-20": 0, "20-30": 0, "30-40": 0, "40-50": 0}
     for m in marks:
         val = m.total_marks or 0
@@ -985,7 +1217,7 @@ def get_analytics_charts(department: Optional[str] = None, class_section: Option
     performance_chart = [{"range": k, "count": v} for k, v in distribution.items()]
     
     # Attendance trend (by date)
-    attendance_records = db.query(AttendanceRecord).filter(AttendanceRecord.student_id.in_(student_ids)).all() if student_ids else []
+    attendance_records = db.query(AttendanceRecord).all()
     dates_map = {}
     for r in attendance_records:
         dates_map.setdefault(r.date, []).append(r.status)
@@ -1008,26 +1240,20 @@ def get_analytics_charts(department: Optional[str] = None, class_section: Option
     }
 
 @app.get("/api/analytics/at-risk")
-def get_at_risk_analytics(department: Optional[str] = None, class_section: Optional[str] = None, db: Session = Depends(get_db)):
+def get_at_risk_analytics(db: Session = Depends(get_db)):
+    marks = db.query(InternalMark).filter(InternalMark.attendance_percentage < 75).all()
     res = []
-    students_query = db.query(Student)
-    if department:
-        students_query = students_query.filter(Student.department == department)
-    if class_section:
-        students_query = students_query.filter(Student.class_section == class_section)
-    for student in students_query.all():
-        records = db.query(AttendanceRecord).filter(AttendanceRecord.student_id == student.id).all()
-        if not records:
-            continue
-        percentage = attendance_percentage(db, student.id)
-        if percentage < 75:
-            mark = db.query(InternalMark).filter(InternalMark.student_id == student.id).first()
+    for m in marks:
+        student = db.query(Student).filter(Student.id == m.student_id).first()
+        if student:
             res.append({
-                "roll_no": student.roll_no, "name": student.name, "attendance": percentage,
-                "marks": mark.total_marks if mark else None,
-                "risk_level": "High" if percentage < 50 else "Medium",
+                "roll_no": student.roll_no,
+                "name": student.name,
+                "attendance": m.attendance_percentage,
+                "marks": m.total_marks,
+                "risk_level": "High" if m.attendance_percentage < 50 else "Medium"
             })
-    return sorted(res, key=lambda student: student["attendance"])
+    return res
 
 @app.get("/api/analytics/report/pdf")
 def get_analytics_pdf():

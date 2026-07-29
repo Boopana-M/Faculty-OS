@@ -49,7 +49,7 @@ def handle_academic_workflow_chat(message: str, faculty_id: int, db: Session, hi
         try:
             marks = db.query(InternalMark).all()
             tool_calls[-1].update({"status": "success", "result": f"Calculated internal marks for {len(marks)} students."})
-            text_response = f"I have calculated the internal marks for CSE-A. The spreadsheet under the 'Marks' tab has been refreshed. The auto-total columns are now populated based on CAT-1, CAT-2, and assignment scores."
+            text_response = f"I have calculated the internal marks for CCE. The spreadsheet under the 'Marks' tab has been refreshed. The auto-total columns are now populated based on CAT-1, CAT-2, and assignment scores."
             rich_data = {
                 "type": "marks_summary",
                 "count": len(marks)
@@ -74,6 +74,97 @@ def handle_academic_workflow_chat(message: str, faculty_id: int, db: Session, hi
             tool_calls[-1].update({"status": "error", "error": str(e)})
             text_response = f"Failed to retrieve reminders: {str(e)}"
             
+    elif "duplicate" in msg_lower or "deduplicate" in msg_lower or "clean" in msg_lower:
+        tool_calls.append({"name": "remove_duplicate_data", "status": "running"})
+        try:
+            from sqlalchemy import func
+            
+            # Deduplicate AttendanceRecord
+            dups_att = db.query(
+                AttendanceRecord.student_id, AttendanceRecord.date, AttendanceRecord.subject, AttendanceRecord.period
+            ).group_by(
+                AttendanceRecord.student_id, AttendanceRecord.date, AttendanceRecord.subject, AttendanceRecord.period
+            ).having(func.count(AttendanceRecord.id) > 1).all()
+            
+            removed_att = 0
+            for s_id, dt, subj, prd in dups_att:
+                records = db.query(AttendanceRecord).filter(
+                    AttendanceRecord.student_id == s_id,
+                    AttendanceRecord.date == dt,
+                    AttendanceRecord.subject == subj,
+                    AttendanceRecord.period == prd
+                ).order_by(AttendanceRecord.id.asc()).all()
+                for r in records[1:]:
+                    db.delete(r)
+                    removed_att += 1
+                    
+            # Deduplicate InternalMark
+            dups_mark = db.query(
+                InternalMark.student_id, InternalMark.subject
+            ).group_by(
+                InternalMark.student_id, InternalMark.subject
+            ).having(func.count(InternalMark.id) > 1).all()
+            
+            removed_mark = 0
+            for s_id, subj in dups_mark:
+                records = db.query(InternalMark).filter(
+                    InternalMark.student_id == s_id,
+                    InternalMark.subject == subj
+                ).order_by(InternalMark.id.asc()).all()
+                for r in records[1:]:
+                    db.delete(r)
+                    removed_mark += 1
+                    
+            # Deduplicate Submission
+            dups_sub = db.query(
+                Submission.student_id, Submission.assignment_id
+            ).group_by(
+                Submission.student_id, Submission.assignment_id
+            ).having(func.count(Submission.id) > 1).all()
+            
+            removed_sub = 0
+            for s_id, a_id in dups_sub:
+                records = db.query(Submission).filter(
+                    Submission.student_id == s_id,
+                    Submission.assignment_id == a_id
+                ).order_by(Submission.id.asc()).all()
+                for r in records[1:]:
+                    db.delete(r)
+                    removed_sub += 1
+                    
+            db.commit()
+            
+            total_removed = removed_att + removed_mark + removed_sub
+            tool_calls[-1].update({"status": "success", "result": f"Removed {total_removed} duplicate records."})
+            text_response = (
+                f"I have successfully cleaned up the academic database and removed duplicate records:\n"
+                f"- **{removed_att}** duplicate attendance records removed.\n"
+                f"- **{removed_mark}** duplicate internal mark records removed.\n"
+                f"- **{removed_sub}** duplicate assignment submission records removed.\n"
+                f"The registers and grids have been updated."
+            )
+            rich_data = {
+                "type": "deduplication_result",
+                "removed_attendance": removed_att,
+                "removed_marks": removed_mark,
+                "removed_submissions": removed_sub,
+                "total_removed": total_removed
+            }
+        except Exception as e:
+            tool_calls[-1].update({"status": "error", "error": str(e)})
+            text_response = f"Failed to clean up duplicate data: {str(e)}"
+            
+    elif "namelist" in msg_lower or "upload student" in msg_lower or "import student" in msg_lower:
+        text_response = (
+            "You can upload a class namelist file (CSV, Excel, or PDF format) using the new upload interface on the **Attendance** tab.\n\n"
+            "I support standard spreadsheet imports (.csv, .xlsx, .xls) and can intelligently scan and extract student registers from PDFs (.pdf) automatically!\n\n"
+            "Would you like me to guide you on formatting your file, or do you have one ready to upload?"
+        )
+        rich_data = {
+            "type": "namelist_upload_guidance",
+            "sample_csv": "roll_no,name,email,class_section\n24CC009,John Doe,doe.j@student.edu,CCE\n24CC010,Jane Smith,smith.j@student.edu,CCE"
+        }
+        
     else:
         system_prompt = (
             "You are EduPilot's Academic Workflow Agent. You help the faculty manage attendance, marks, assignments, and reminders. "

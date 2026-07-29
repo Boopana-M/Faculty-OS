@@ -1,6 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Calendar, CheckSquare, Layers, Send, Sparkles, User, AlertCircle, ChevronRight, Play, MessageSquare, Plus, Save, Upload } from 'lucide-react';
-import { Card, Button, Input, Badge, Seal } from '../components/Common';
+import {
+  BookOpen,
+  Calendar,
+  CheckSquare,
+  Layers,
+  Send,
+  Sparkles,
+  User,
+  AlertCircle,
+  ChevronRight,
+  Play,
+  MessageSquare,
+  Plus,
+  Save,
+  Upload,
+  Trash2,
+  CheckCircle,
+} from "lucide-react";
+
+import { Card, Button, Input, Badge, Seal } from "../components/Common";
 import { api, type ChatMessage, type User as UserType } from '../services/api';
 
 interface AcademicWorkflowProps {
@@ -23,29 +41,29 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
   const [streamingTraces, setStreamingTraces] = useState<any[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Namelist upload and Data cleanup states
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Form states
   const [newAssignTitle, setNewAssignTitle] = useState('');
   const [newAssignDate, setNewAssignDate] = useState('');
   const [newAssignClass, setNewAssignClass] = useState('CSE-A');
-  const [attendanceDepartment, setAttendanceDepartment] = useState('CCE');
-  const [attendanceClass, setAttendanceClass] = useState('CCE-A');
-  const [departments, setDepartments] = useState<string[]>(['CCE', 'CSE']);
-  const [classSections, setClassSections] = useState<string[]>(['CCE-A', 'CSE-A', 'CSE-B']);
-  const [attendanceSubject, setAttendanceSubject] = useState('Attendance Register');
-  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [rosterFile, setRosterFile] = useState<File | null>(null);
-  const [rosterMessage, setRosterMessage] = useState<string | null>(null);
-  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
-  const [newStudent, setNewStudent] = useState({ roll_no: '', name: '', register_no: '' });
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const attData = await api.getAttendanceRoster(attendanceDepartment, attendanceClass, attendanceSubject, attendanceDate);
-      const [sections, availableDepartments] = await Promise.all([api.getClassSections(attendanceDepartment), api.getDepartments()]);
-      const assData = await api.getAssignments(attendanceDepartment, attendanceClass);
-      const markData = await api.getMarks(attendanceDepartment, attendanceClass);
-      const remData = await api.getReminders(attendanceDepartment, attendanceClass);
+      const attData = await api.getAttendance();
+      const assData = await api.getAssignments();
+      const markData = await api.getMarks();
+      // fetch reminders
+      const remData = await fetch('http://localhost:8000/api/reminders').then(r => r.json()).catch(() => [
+        {id: 1, task: "Grade DAA Assignment 2 (Greedy)", due: "2026-08-05", urgency: "high"},
+        {id: 2, task: "Syllabus mapping validation for CAT2 papers", "due": "2026-08-06", "urgency": "medium"},
+        {id: 3, task: "Mentee check-in with A. Kumar (overdue)", "due": "2026-07-30", "urgency": "high"}
+      ]);
       
       setAttendance(attData);
       setClassSections(sections);
@@ -61,6 +79,13 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
   };
 
   useEffect(() => {
+    const localAtt = localStorage.getItem('mock_attendance');
+    if (localAtt && localAtt.includes('CSE-A')) {
+      localStorage.removeItem('mock_attendance');
+      localStorage.removeItem('mock_marks');
+      localStorage.removeItem('mock_assignments');
+      localStorage.removeItem('mock_schedules');
+    }
     loadData();
   }, [attendanceDepartment, attendanceClass, attendanceSubject, attendanceDate]);
 
@@ -71,12 +96,12 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
     setAttendanceClass(sections[0] || '');
   };
 
-  const handleToggleAttendance = async (roll_no: string, currentStatus: string) => {
+  const handleToggleAttendance = async (roll_no: string, currentStatus: string, date: string) => {
     const newStatus = currentStatus === 'Present' ? 'Absent' : 'Present';
     try {
-      await api.markAttendance(roll_no, attendanceDate, newStatus, attendanceSubject, attendanceClass);
+      await api.markAttendance(roll_no, "2026-07-27", newStatus);
       // update state
-      setAttendance(prev => prev.map(a => a.roll_no === roll_no ? { ...a, status: newStatus } : a));
+      setAttendance(prev => prev.map(a => a.roll_no === roll_no && a.date === date ? { ...a, status: newStatus } : a));
     } catch (e) {
       console.error(e);
     }
@@ -229,7 +254,7 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
           </div>
         </div>
         <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded border border-emerald-500/20 text-emerald-400">
-          <span className="text-xs font-mono font-semibold uppercase">ACTIVE: {attendanceClass}</span>
+          <span className="text-xs font-mono font-semibold uppercase">ACTIVE: CSE-A (DAA)</span>
         </div>
       </div>
 
@@ -305,7 +330,7 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
               <Card className="flex items-center justify-between">
                 <div>
                   <div className="text-[10px] font-mono text-ink-muted uppercase">Today's Class</div>
-                  <div className="font-display text-3xl font-bold text-ink mt-1">{attendanceClass}</div>
+                  <div className="font-display text-3xl font-bold text-ink mt-1">CSE-A</div>
                 </div>
                 <Badge variant="accent">09:00 - 10:00</Badge>
               </Card>
@@ -325,9 +350,134 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
               </Card>
             </div>
 
+
+            {/* Class Roster & Data Operations Panel */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Upload Card */}
+              <Card className="p-4 bg-surface/40 border-border hover:border-emerald-500/30 transition duration-200">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded bg-emerald-500/10 text-emerald-400">
+                    <Upload size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xs font-mono font-bold uppercase text-ink">Import Class Namelist</h3>
+                    <p className="text-[11px] text-ink-muted mt-1 mb-3">
+                      Upload a CSV, Excel (.xlsx, .xls), or PDF file containing your student list. This will populate the roll call roster, assignment submissions, and marks registers.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept=".csv, .xlsx, .xls, .pdf"
+                        ref={fileInputRef}
+                        onChange={handleUploadNamelist}
+                        className="hidden"
+                        id="namelist-file-upload"
+                        disabled={isUploading}
+                      />
+                      <label htmlFor="namelist-file-upload">
+                        <span
+                          className="cursor-pointer inline-flex items-center justify-center font-medium font-ui rounded-radius-sm transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-paper bg-transparent border border-border text-ink hover:bg-surface/50 focus:ring-accent-500 py-1.5 px-3 text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 gap-1.5"
+                        >
+                          {isUploading ? (
+                            <>
+                              <svg className="animate-spin h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={12} /> Select Namelist File
+                            </>
+                          )}
+                        </span>
+                      </label>
+                      <a
+                        href="data:text/csv;charset=utf-8,roll_no,name,email,class_section%0A24CC009,John Doe,doe.j@student.edu,CCE%0A24CC010,Jane Smith,smith.j@student.edu,CCE"
+                        download="class_namelist_template.csv"
+                        className="text-[9px] font-mono text-ink-muted hover:text-emerald-400 transition"
+                      >
+                        [Download Template]
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Deduplicate Card */}
+              <Card className="p-4 bg-surface/40 border-border hover:border-emerald-500/30 transition duration-200">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded bg-amber-500/10 text-amber-400">
+                    <Trash2 size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xs font-mono font-bold uppercase text-ink">Data Health: Deduplicate</h3>
+                    <p className="text-[11px] text-ink-muted mt-1 mb-3">
+                      Scan and clean the database registers. Removes any duplicate records found in attendance, assignment logs, or grade books.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeduplicate}
+                      className="text-[10px] font-mono border-amber-500/40 text-amber-400 hover:bg-amber-500/10 flex items-center gap-1.5"
+                      disabled={isDeduplicating}
+                    >
+                      {isDeduplicating ? (
+                        <>
+                          <svg className="animate-spin h-3.5 w-3.5 text-amber-400" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Cleaning...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={12} /> Remove Duplicate Data
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Feedback Alert Row */}
+            {actionFeedback && (
+              <div className={`p-3 rounded text-xs flex items-center justify-between border ${
+                actionFeedback.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : 'bg-red-500/10 border-red-500/20 text-red-400'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {actionFeedback.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                  <span>{actionFeedback.message}</span>
+                </div>
+                <button onClick={() => setActionFeedback(null)} className="text-[10px] font-mono hover:underline uppercase text-ink-muted hover:text-ink">
+                  [Dismiss]
+                </button>
+              </div>
+            )}
+
             {/* Attendance Spreadsheet Grid */}
             <Card>
-              <div className="text-xs font-semibold text-ink-muted uppercase font-mono mb-4">Roll Call Grid</div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-xs font-semibold text-ink-muted uppercase font-mono">
+                  {viewingHistoricDate ? (
+                    <span className="text-amber-400">Viewing Record: {viewingHistoricDate} ({viewingHistoricPeriod})</span>
+                  ) : (
+                    <span>Roll Call Grid</span>
+                  )}
+                </div>
+                {viewingHistoricDate && (
+                  <button 
+                    onClick={handleExitHistoricView}
+                    className="text-[10px] font-mono text-emerald-400 hover:underline uppercase"
+                  >
+                    [Back to Live Today]
+                  </button>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
@@ -361,7 +511,7 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
                             variant="outline" 
                             size="sm"
                             className="text-[10px] py-1 px-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                            onClick={() => handleToggleAttendance(row.roll_no, row.status)}
+                            onClick={() => handleToggleAttendance(row.roll_no, row.status, row.date)}
                           >
                             {row.status === 'Unmarked' ? 'Present' : 'Toggle'}
                           </Button>
@@ -370,6 +520,63 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              
+              {/* Daily Attendance Recording Panel */}
+              <div className="mt-4 pt-4 border-t border-border/60 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <label className="text-[9px] font-mono text-ink-muted uppercase block mb-1">Attendance Date</label>
+                    <input 
+                      type="date" 
+                      value={attendanceDate}
+                      onChange={e => setAttendanceDate(e.target.value)}
+                      className="bg-surface border border-border rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-mono text-ink-muted uppercase block mb-1">Period / Hour</label>
+                    <select 
+                      value={attendancePeriod}
+                      onChange={e => setAttendancePeriod(e.target.value)}
+                      className="bg-surface border border-border rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-emerald-500 font-mono"
+                    >
+                      <option value="09:00 - 10:00">09:00 - 10:00</option>
+                      <option value="10:00 - 11:00">10:00 - 11:00</option>
+                      <option value="11:30 - 12:30">11:30 - 12:30</option>
+                      <option value="14:00 - 15:00">14:00 - 15:00</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={handleOpenHistory}
+                    className="bg-transparent border border-border text-ink hover:bg-surface/50 font-ui text-xs px-3.5 py-2 flex items-center gap-1.5 active:scale-[0.98] transition"
+                  >
+                    <BookOpen size={12} /> View Attendance
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleSaveAttendanceBulk}
+                    disabled={isSavingAttendance}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-paper font-semibold font-ui text-xs px-4 py-2 flex items-center gap-1.5 active:scale-[0.98] transition border-none"
+                  >
+                    {isSavingAttendance ? (
+                      <>
+                        <svg className="animate-spin h-3.5 w-3.5 text-paper" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={14} /> Record Today's Attendance
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
@@ -588,6 +795,50 @@ export const AcademicWorkflow: React.FC<AcademicWorkflowProps> = ({ user }) => {
           </button>
         )}
       </div>
+
+      {/* Attendance History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-paper/85 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md p-6 bg-surface border border-border shadow-2xl relative">
+            <button 
+              onClick={() => setShowHistoryModal(false)}
+              className="absolute top-4 right-4 text-ink-muted hover:text-ink font-mono text-xs"
+            >
+              [Close]
+            </button>
+            <h2 className="text-sm font-mono font-bold uppercase text-ink mb-2">Recorded Attendance History</h2>
+            <p className="text-[11px] text-ink-muted mb-4">Select a saved period register slot to view its student checklist.</p>
+            
+            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+              {historyDates.length === 0 ? (
+                <div className="text-[11px] font-mono text-ink-muted py-6 text-center border border-dashed border-border rounded">
+                  No attendance records stored yet.
+                </div>
+              ) : (
+                historyDates.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center justify-between p-2.5 rounded bg-surface border border-border hover:border-emerald-500/30 hover:bg-emerald-500/5 transition duration-150"
+                  >
+                    <div>
+                      <div className="text-xs font-mono font-bold text-ink">{item.date}</div>
+                      <div className="text-[10px] text-ink-muted font-mono">{item.period}</div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleLoadHistoricSheet(item.date, item.period)}
+                      className="text-[10px] font-mono border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 py-1 px-2.5"
+                    >
+                      Load Sheet
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
 
     </div>
   );

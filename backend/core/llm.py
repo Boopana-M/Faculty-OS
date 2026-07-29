@@ -93,7 +93,7 @@ class LLMClient:
         last_message = messages[-1]["content"].lower()
         
         if "schedule" in last_message or "today" in last_message:
-            return "Based on your timetable database, you have the following classes today:\n\n1. **09:00 - 10:00**: Design & Analysis of Algorithms for **CSE-A** in **LH-201**\n2. **11:30 - 12:30**: Machine Learning for **CSE-B** in **LH-302**\n\nI have rendered today's schedule in your dashboard panel to the right."
+            return "Based on your timetable database, you have the following classes today:\n\n1. **09:00 - 10:00**: Design & Analysis of Algorithms for **CCE** in **LH-201**\n2. **11:30 - 12:30**: Machine Learning for **CSE-B** in **LH-302**\n\nI have rendered today's schedule in your dashboard panel to the right."
         
         elif "draft" in last_message or "email" in last_message:
             return """Here is a drafted reminder email for you:
